@@ -93,9 +93,7 @@ const buildingMatCache = {};
 function getBuildingMat(hue) {
   const key = Math.round(hue * 10);
   if (buildingMatCache[key]) return buildingMatCache[key];
-  const m = new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(hue, 0.35, 0.55),
-  });
+  const m = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(hue, 0.35, 0.55) });
   buildingMatCache[key] = m;
   return m;
 }
@@ -129,10 +127,7 @@ for (let r = 0; r < GRID; r++) {
 
       const horizontal = (r % 4 === 0);
       for (let i = -TILE / 2 + 4; i < TILE / 2; i += 8) {
-        const dash = new THREE.Mesh(
-          new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4),
-          lineMat
-        );
+        const dash = new THREE.Mesh(new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4), lineMat);
         dash.rotation.x = -Math.PI / 2;
         dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i));
         scene.add(dash);
@@ -157,10 +152,7 @@ for (let r = 0; r < GRID; r++) {
       }
     } else {
       for (let i = 0; i < 4; i++) {
-        addTree(
-          x + (Math.random() - 0.5) * (TILE - 4),
-          z + (Math.random() - 0.5) * (TILE - 4)
-        );
+        addTree(x + (Math.random() - 0.5) * (TILE - 4), z + (Math.random() - 0.5) * (TILE - 4));
       }
     }
   }
@@ -168,7 +160,9 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
+// Force the bus to start in the middle of the road
 bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
+// Face down the road
 bus.rotation.y = Math.PI / 2; 
 scene.add(bus);
 
@@ -184,12 +178,11 @@ loader.load('assets/bus.glb', (gltf) => {
   const targetLength = 12;
   const s = targetLength / Math.max(size.x, size.z);
   model.scale.setScalar(s);
+  // Force the model to face the same way as the group
+  model.rotation.y = 0; 
   bus.add(model);
 }, undefined, (e) => {
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 2.2, 6),
-    new THREE.MeshStandardMaterial({ color: 0xf2c94c })
-  );
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 6), new THREE.MeshStandardMaterial({ color: 0xf2c94c }));
   body.position.y = 1.4;
   bus.add(body);
 });
@@ -367,10 +360,11 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    const local = new THREE.Vector3(0, 3.6, -4.5); 
+    // Force the camera to look out the FRONT windshield by placing it forward and looking further forward
+    const local = new THREE.Vector3(0, 3.6, 4.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
-    const look = new THREE.Vector3(0, 3.4, -20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    const look = new THREE.Vector3(0, 3.4, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.lookAt(look);
     camera.fov = 75;
   } else {
