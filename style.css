@@ -38,7 +38,8 @@ body.intro #topbar,
 body.intro #minimap,
 body.intro #speedo,
 body.intro #controls,
-body.intro #credit {
+body.intro #credit,
+body.intro #touch-controls {
   opacity: 0;
   pointer-events: none;
 }
@@ -95,3 +96,32 @@ button:hover { background: #1d4ed8; }
 }
 #intro button:hover { transform: scale(1.05); background: #1d4ed8; }
 #intro.fade-out { opacity: 0; pointer-events: none; }
+
+/* ---------- Touch Controls ---------- */
+#touch-controls {
+  position: fixed; bottom: 20px; left: 20px; right: 20px;
+  display: flex; justify-content: space-between;
+  align-items: flex-end; z-index: 100;
+  transition: opacity 0.6s ease;
+}
+.d-pad { display: flex; gap: 10px; }
+.pedals { display: flex; gap: 10px; }
+#touch-controls button {
+  background: rgba(0, 0, 0, 0.6); color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%; width: 70px; height: 70px;
+  font-size: 24px; font-weight: bold;
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation; /* prevents zoom on double tap */
+}
+#touch-controls button:active {
+  background: rgba(37, 99, 235, 0.8);
+  transform: scale(0.95);
+}
+#btn-gas { width: 80px; height: 80px; border-radius: 20px; background: rgba(34, 197, 94, 0.6); }
+#btn-brake { width: 80px; height: 80px; border-radius: 20px; background: rgba(239, 68, 68, 0.6); }
+
+/* Hide touch controls on desktop */
+@media (min-width: 1024px) {
+  #touch-controls { display: none; }
+}
