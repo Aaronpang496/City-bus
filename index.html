@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>🚌 Bus Tycoon: City Routes</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -27,6 +27,103 @@
   <div id="speedo">
     <div id="speedBar"></div>
     <span id="speedText">0 km/h</span>
+  </div>
+
+  <!-- Touch Controls for Mobile/iPad -->
+  <div id="touch-controls">
+    <div class="d-pad">
+      <button id="btn-left">◀</button>
+      <button id="btn-right">▶</button>
+    </div>
+    <div class="pedals">
+      <button id="btn-brake">Brake</button>
+      <button id="btn-gas">GAS</button>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div id="prompt" class="hidden">
+    <p id="promptText"></p>
+    <div class="buttons">
+      <button id="promptYes">Yes</button>
+      <button id="promptNo">No</button>
+    </div>
+  </div>
+
+  <!-- End of day / game over overlay -->
+  <div id="overlay" class="hidden">
+    <h1 id="overlayTitle"></h1>
+    <p id="overlayText"></p>
+    <button id="overlayBtn">Continue</button>
+  </div>
+
+  <!-- Cinematic intro / title screen -->
+  <div id="intro">
+    <h1>🚌 Bus Tycoon</h1>
+    <h2>City Routes</h2>
+    <p>Drive the double-decker. Manage fuel, repairs &amp; reputation.<br/>Survive 20 days.</p>
+    <button id="startBtn">▶ Start driving</button>
+  </div>
+
+  <div id="controls">
+    WASD / Arrows drive · Space brake · <b>C</b> cockpit view
+  </div>
+
+  <div id="credit">
+    Bus model: “Hong Kong Double Decker Bus” by businessyuen — CC BY 4.0
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🚌 Bus Tycoon: City Routes</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="intro">
+
+  <canvas id="game"></canvas>
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div class="stat"><span>📍</span><b id="nextStop">—</b></div>
+    <div class="stat"><span>📅</span><b id="day">1</b>/20</div>
+    <div class="stat"><span>💰</span><b id="money">200</b></div>
+    <div class="stat"><span>⭐</span><b id="rep">50</b></div>
+    <div class="stat"><span>⛽</span><b id="fuel">100</b></div>
+    <div class="stat"><span>🔧</span><b id="cond">100</b></div>
+  </div>
+
+  <!-- Minimap -->
+  <canvas id="minimap" width="180" height="180"></canvas>
+
+  <!-- Speedo -->
+  <div id="speedo">
+    <div id="speedBar"></div>
+    <span id="speedText">0 km/h</span>
+  </div>
+
+  <!-- Touch Controls for Mobile/iPad -->
+  <div id="touch-controls">
+    <div class="d-pad">
+      <button id="btn-left">◀</button>
+      <button id="btn-right">▶</button>
+    </div>
+    <div class="pedals">
+      <button id="btn-brake">Brake</button>
+      <button id="btn-gas">GAS</button>
+    </div>
   </div>
 
   <!-- Prompt -->
