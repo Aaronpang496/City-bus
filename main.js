@@ -14,7 +14,10 @@ const state = {
   cockpit: false,
 };
 
-// ================= INTRO / CINEMATIC =================
+const camOffset = { x: 0, y: 0 };
+let isDragging = false;
+let previousMousePosition = { x: 0, y: 0 };
+
 const intro = {
   active: true,
   startTime: performance.now(),
@@ -71,7 +74,6 @@ function tileToWorld(r, c) {
   return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
 }
 
-// Window texture
 const windowTex = (() => {
   const c = document.createElement('canvas');
   c.width = 64; c.height = 128;
@@ -295,6 +297,26 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
+canvas.addEventListener('touchstart', (e) => {
+  if (state.cockpit) return; 
+  isDragging = true;
+  previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, {passive: false});
+
+canvas.addEventListener('touchend', () => { isDragging = false; });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging || state.cockpit) return;
+  const deltaX = e.touches[0].clientX - previousMousePosition.x;
+  const deltaY = e.touches[0].clientY - previousMousePosition.y;
+  
+  camOffset.x -= deltaX * 0.01;
+  camOffset.y -= deltaY * 0.01;
+  camOffset.y = Math.max(-0.5, Math.min(1.0, camOffset.y));
+  
+  previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, {passive: false});
+
 // ================= HUD =================
 const $ = id => document.getElementById(id);
 
@@ -391,22 +413,29 @@ function updateCamera(dt) {
       .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
       .add(bus.position);
     camera.position.copy(world);
+    
     const look = new THREE.Vector3(0, 3.4, 20)
       .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
       .add(bus.position);
     camera.lookAt(look);
     camera.fov = 75;
   } else {
-    const offset = new THREE.Vector3(0, 8, -14)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
+    const offset = new THREE.Vector3(0, 8, -14);
+    const rotationMatrix = new THREE.Matrix4().makeRotationY(camOffset.x);
+    offset.applyMatrix4(rotationMatrix);
+    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
+    offset.y += camOffset.y * 10;
+
     const target = bus.position.clone().add(offset);
+    
     if (!camInitialised) {
       camera.position.copy(target);
       camInitialised = true;
     } else {
       camera.position.lerp(target, Math.min(1, dt * 4));
     }
-    camera.lookAt(bus.position.x, 3, bus.position.z + Math.cos(bus.rotation.y) * 4);
+    
+    camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
     camera.fov = 60;
   }
   camera.updateProjectionMatrix();
@@ -417,12 +446,31 @@ function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-    if (wp.distanceTo(bus.position) < 5 && state.speed < 5) {
+    
+    if (wp.distanceTo(bus.position) < 6 && state.speed < 5) {
       s.used = true;
-      state.money += 8;
-      state.rep += 2;
-      state.passengers++;
-      updateHUD();
+      state.paused = true; 
+      
+      promptTextEl.textContent = "🚏 Bus stop reached! Allow passengers to board?";
+      
+      $('promptYes').onclick = () => {
+        state.money += 8;
+        state.rep += 2;
+        state.passengers++;
+        s.zone.material.color.set(0x22c55e); 
+        promptEl.classList.add('hidden');
+        state.paused = false;
+        updateHUD();
+      };
+      
+      $('promptNo').onclick = () => {
+        state.rep = Math.max(0, state.rep - 1); 
+        promptEl.classList.add('hidden');
+        state.paused = false;
+        updateHUD();
+      };
+      
+      promptEl.classList.remove('hidden');
     }
   });
 }
@@ -458,12 +506,13 @@ function maybePrompt() {
     pendingPrompt = prompts[Math.floor(Math.random() * prompts.length)];
     state.paused = true;
     promptTextEl.textContent = pendingPrompt.text;
+    
+    $('promptYes').onclick = () => resolvePrompt(true);
+    $('promptNo').onclick = () => resolvePrompt(false);
+
     promptEl.classList.remove('hidden');
   }
 }
-
-$('promptYes').onclick = () => resolvePrompt(true);
-$('promptNo').onclick = () => resolvePrompt(false);
 
 function resolvePrompt(yes) {
   const e = yes ? pendingPrompt.yes : pendingPrompt.no;
@@ -574,7 +623,6 @@ function drawMinimap() {
 }
 
 // ================= FORCE SHOW TOUCH CONTROLS =================
-// We force the CSS to show the buttons in the code itself
 const touchControls = document.getElementById('touch-controls');
 if (touchControls) {
   touchControls.style.display = 'flex';
@@ -630,7 +678,6 @@ function bindTouch(id, key) {
   const btn = document.getElementById(id);
   if (!btn) return;
   
-  // Force the buttons to be fully interactive
   btn.style.pointerEvents = 'auto';
   btn.style.zIndex = '99999';
 
@@ -649,9 +696,6 @@ function bindTouch(id, key) {
     keys[key] = false;
   });
   
-  // fallback
-  btn.addEventListener('mousedown', () => keys[key] = true);
-  btn.addEventListener('mouseup', () => keys[key] = false);
   btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; }, {passive: false});
   btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; }, {passive: false});
 }
@@ -659,6 +703,20 @@ bindTouch('btn-left', 'a');
 bindTouch('btn-right', 'd');
 bindTouch('btn-gas', 'w');
 bindTouch('btn-brake', 's');
+
+// Bind the Camera Button
+const camBtn = document.getElementById('btn-cam');
+if (camBtn) {
+  camBtn.style.pointerEvents = 'auto';
+  camBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    state.cockpit = !state.cockpit;
+  });
+  camBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    state.cockpit = !state.cockpit;
+  }, {passive: false});
+}
 
 updateHUD();
 animate();
