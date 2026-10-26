@@ -349,9 +349,6 @@ function updateBus(dt) {
 let camInitialised = false;
 
 function updateCamera(dt) {
-  // Removed the busReady check so the camera works even if the model is still loading
-
-  // --- INTRO: orbital bird view ---
   if (intro.active && !intro.transitioning) {
     const t = Math.min(1, (performance.now() - intro.startTime) / intro.duration);
     const ease = t * t * (3 - 2 * t);
@@ -367,7 +364,6 @@ function updateCamera(dt) {
     return;
   }
 
-  // --- INTRO: fly down to chase cam ---
   if (intro.transitioning) {
     intro.transition = Math.min(1, intro.transition + dt * 0.9);
     const e = intro.transition * intro.transition * (3 - 2 * intro.transition);
@@ -389,7 +385,6 @@ function updateCamera(dt) {
     return;
   }
 
-  // --- Normal cameras ---
   if (state.cockpit) {
     const local = new THREE.Vector3(0, 3.6, 4.5);
     const world = local.clone()
@@ -582,7 +577,6 @@ function drawMinimap() {
 const introEl = document.getElementById('intro');
 const startBtn = document.getElementById('startBtn');
 
-// Use pointerdown so it registers instantly on iPad
 startBtn.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   introEl.classList.add('fade-out');
