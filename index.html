@@ -10,7 +10,6 @@
 
   <canvas id="game"></canvas>
 
-  <!-- Top bar -->
   <div id="topbar">
     <div class="stat"><span>📍</span><b id="nextStop">—</b></div>
     <div class="stat"><span>📅</span><b id="day">1</b>/20</div>
@@ -20,16 +19,13 @@
     <div class="stat"><span>🔧</span><b id="cond">100</b></div>
   </div>
 
-  <!-- Minimap -->
   <canvas id="minimap" width="180" height="180"></canvas>
 
-  <!-- Speedo -->
   <div id="speedo">
     <div id="speedBar"></div>
     <span id="speedText">0 km/h</span>
   </div>
 
-  <!-- Touch Controls for Mobile/iPad -->
   <div id="touch-controls">
     <div class="d-pad">
       <button id="btn-left">◀</button>
@@ -42,7 +38,6 @@
     </div>
   </div>
 
-  <!-- Prompt -->
   <div id="prompt" class="hidden">
     <p id="promptText"></p>
     <div class="buttons">
@@ -51,14 +46,12 @@
     </div>
   </div>
 
-  <!-- End of day / game over overlay -->
   <div id="overlay" class="hidden">
     <h1 id="overlayTitle"></h1>
     <p id="overlayText"></p>
     <button id="overlayBtn">Continue</button>
   </div>
 
-  <!-- Cinematic intro / title screen -->
   <div id="intro">
     <h1>🚌 Bus Tycoon</h1>
     <h2>City Routes</h2>
