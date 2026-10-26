@@ -160,9 +160,7 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
-// Force the bus to start in the middle of the road
 bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-// Face down the road
 bus.rotation.y = Math.PI / 2; 
 scene.add(bus);
 
@@ -178,7 +176,6 @@ loader.load('assets/bus.glb', (gltf) => {
   const targetLength = 12;
   const s = targetLength / Math.max(size.x, size.z);
   model.scale.setScalar(s);
-  // Force the model to face the same way as the group
   model.rotation.y = 0; 
   bus.add(model);
 }, undefined, (e) => {
@@ -287,12 +284,15 @@ function updateHUD() {
 
 function updateBus(dt) {
   const accel = (keys['w'] || keys['arrowup']) ? 28 : 0;
+  const reverse = keys['r'] ? -20 : 0;
   const brake = (keys['s'] || keys['arrowdown'] || keys[' ']) ? 40 : 0;
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
 
   state.steer += (steerInput - state.steer) * Math.min(1, dt * 4);
-  state.speed += (accel - brake) * dt;
-  state.speed = Math.max(0, Math.min(state.maxSpeed, state.speed));
+  state.speed += (accel + reverse - brake) * dt;
+  
+  // Allow negative speed (reverse)
+  state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
   state.speed *= 0.995;
 
   const turnFactor = 0.9 * (state.speed / state.maxSpeed);
@@ -310,7 +310,7 @@ function updateBus(dt) {
   }
 
   if (hit) {
-    state.speed = -10;
+    state.speed = 0;
     state.cond = Math.max(0, state.cond - 5);
     updateHUD();
   } else {
@@ -322,8 +322,8 @@ function updateBus(dt) {
   bus.position.x = Math.max(-lim, Math.min(lim, bus.position.x));
   bus.position.z = Math.max(-lim, Math.min(lim, bus.position.z));
 
-  state.fuel = Math.max(0, state.fuel - state.speed * dt * 0.02);
-  state.cond = Math.max(0, state.cond - state.speed * dt * 0.005);
+  state.fuel = Math.max(0, state.fuel - Math.abs(state.speed) * dt * 0.02);
+  state.cond = Math.max(0, state.cond - Math.abs(state.speed) * dt * 0.005);
   if (state.fuel <= 0) state.speed = 0;
 }
 
@@ -360,7 +360,7 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    // Force the camera to look out the FRONT windshield by placing it forward and looking further forward
+    // Properly look out the front windshield
     const local = new THREE.Vector3(0, 3.6, 4.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
@@ -392,7 +392,7 @@ function checkStops() {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
     
-    if (wp.distanceTo(bus.position) < 6 && state.speed < 5) {
+    if (wp.distanceTo(bus.position) < 6 && Math.abs(state.speed) < 5) {
       s.used = true;
       state.paused = true; 
       
@@ -423,7 +423,7 @@ function updateTraffic(dt) {
     car.position.x += car.userData.speed * dt;
     if (car.position.x > HALF) car.position.x = -HALF;
     if (car.position.distanceTo(bus.position) < 3.5) {
-      state.speed = -10; 
+      state.speed = 0; 
       state.cond = Math.max(0, state.cond - 15);
       state.rep = Math.max(0, state.rep - 5);
       updateHUD();
@@ -583,6 +583,7 @@ bindTouch('btn-left', 'a');
 bindTouch('btn-right', 'd');
 bindTouch('btn-gas', 'w');
 bindTouch('btn-brake', 's');
+bindTouch('btn-rev', 'r');
 
 const camBtn = document.getElementById('btn-cam');
 if (camBtn) {
