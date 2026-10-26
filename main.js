@@ -166,8 +166,8 @@ for (let r = 0; r < GRID; r++) {
 // ================= BUS =================
 const bus = new THREE.Group();
 bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-// FLIP THE BUS so it faces the right way
-bus.rotation.y = -Math.PI / 2;
+// BUG FIX: Flip the bus to face the right way and drive forward
+bus.rotation.y = Math.PI / 2 + Math.PI; 
 scene.add(bus);
 
 const loader = new GLTFLoader();
@@ -182,7 +182,7 @@ loader.load('assets/bus.glb', (gltf) => {
   const targetLength = 12;
   const s = targetLength / Math.max(size.x, size.z);
   model.scale.setScalar(s);
-  model.rotation.y = Math.PI;
+  // BUG FIX: Removed the extra rotation here so the group rotation controls it
   bus.add(model);
 }, undefined, (e) => {
   console.warn('Bus model missing — using fallback box.', e);
@@ -634,11 +634,18 @@ bindTouch('btn-right', 'd');
 bindTouch('btn-gas', 'w');
 bindTouch('btn-brake', 's');
 
+// BUG FIX: The camera button needs both touch and click events to work on iPad
 const camBtn = document.getElementById('btn-cam');
 if (camBtn) {
   camBtn.style.pointerEvents = 'auto';
-  camBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; });
-  camBtn.addEventListener('touchstart', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; }, {passive: false});
+  
+  function toggleCam(e) {
+    if (e) e.preventDefault();
+    state.cockpit = !state.cockpit;
+  }
+  
+  camBtn.addEventListener('click', toggleCam);
+  camBtn.addEventListener('touchstart', toggleCam, {passive: false});
 }
 
 updateHUD();
