@@ -271,7 +271,7 @@ function updateHUD() {
   $('cond').textContent = Math.round(state.cond);
   $('day').textContent = state.day;
   $('speedText').textContent = Math.round(state.speed) + ' km/h';
-  $('speedBar').style.width = (state.speed / state.maxSpeed * 100) + '%';
+  $('speedBar').style.width = Math.abs(state.speed / state.maxSpeed * 100) + '%';
 
   const next = stops.find(s => !s.used);
   if (next) {
@@ -291,7 +291,6 @@ function updateBus(dt) {
   state.steer += (steerInput - state.steer) * Math.min(1, dt * 4);
   state.speed += (accel + reverse - brake) * dt;
   
-  // Allow negative speed (reverse)
   state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
   state.speed *= 0.995;
 
@@ -360,11 +359,11 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    // Properly look out the front windshield
-    const local = new THREE.Vector3(0, 3.6, 4.5); 
+    // HOOD CAM: Positioned at the front bumper, looking forward (no clipping)
+    const local = new THREE.Vector3(0, 2.5, 6.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
-    const look = new THREE.Vector3(0, 3.4, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    const look = new THREE.Vector3(0, 2.0, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.lookAt(look);
     camera.fov = 75;
   } else {
@@ -392,12 +391,18 @@ function checkStops() {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
     
-    if (wp.distanceTo(bus.position) < 6 && Math.abs(state.speed) < 5) {
+    // Increased radius to 10 for easier trigger
+    if (wp.distanceTo(bus.position) < 10 && Math.abs(state.speed) < 5) {
       s.used = true;
       state.paused = true; 
       
       promptTextEl.textContent = "🚏 Bus stop reached! Allow passengers to board?";
-      $('promptYes').onclick = () => {
+      
+      const yesBtn = $('promptYes');
+      const noBtn = $('promptNo');
+      
+      yesBtn.onclick = (e) => {
+        e.preventDefault();
         state.money += 8;
         state.rep += 2;
         state.passengers++;
@@ -406,7 +411,8 @@ function checkStops() {
         state.paused = false;
         updateHUD();
       };
-      $('promptNo').onclick = () => {
+      noBtn.onclick = (e) => {
+        e.preventDefault();
         state.rep = Math.max(0, state.rep - 1); 
         promptEl.classList.add('hidden');
         state.paused = false;
