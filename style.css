@@ -1,6 +1,6 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { overflow: hidden; font-family: system-ui, sans-serif; background: #111; }
-canvas#game { display: block; }
+canvas#game { display: block; touch-action: none; } /* Allows dragging camera */
 
 /* ---------- HUD ---------- */
 #topbar {
@@ -96,22 +96,22 @@ button:hover { background: #1d4ed8; }
 #intro button:hover { transform: scale(1.05); background: #1d4ed8; }
 #intro.fade-out { opacity: 0; pointer-events: none; }
 
-/* ---------- Touch Controls (FORCED TO SHOW) ---------- */
+/* ---------- Touch Controls (Bigger) ---------- */
 #touch-controls {
   position: fixed; bottom: 20px; left: 20px; right: 20px;
-  display: flex !important; /* Forces them to show */
+  display: flex !important; 
   justify-content: space-between;
   align-items: flex-end; z-index: 9999;
   opacity: 1 !important; 
   pointer-events: auto !important;
 }
-.d-pad { display: flex; gap: 10px; }
-.pedals { display: flex; gap: 10px; }
+.d-pad { display: flex; gap: 15px; }
+.pedals { display: flex; gap: 15px; }
 #touch-controls button {
   background: rgba(0, 0, 0, 0.6); color: white;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%; width: 70px; height: 70px;
-  font-size: 24px; font-weight: bold;
+  border-radius: 50%; width: 85px; height: 85px;
+  font-size: 28px; font-weight: bold;
   -webkit-user-select: none; user-select: none;
   touch-action: manipulation;
 }
@@ -119,5 +119,6 @@ button:hover { background: #1d4ed8; }
   background: rgba(37, 99, 235, 0.8);
   transform: scale(0.95);
 }
-#btn-gas { width: 80px; height: 80px; border-radius: 20px; background: rgba(34, 197, 94, 0.6); }
-#btn-brake { width: 80px; height: 80px; border-radius: 20px; background: rgba(239, 68, 68, 0.6); }
+#btn-gas { width: 95px; height: 95px; border-radius: 25px; background: rgba(34, 197, 94, 0.6); }
+#btn-brake { width: 95px; height: 95px; border-radius: 25px; background: rgba(239, 68, 68, 0.6); }
+#btn-cam { width: 85px; height: 85px; border-radius: 15px; background: rgba(255, 255, 255, 0.2); font-size: 20px; }
