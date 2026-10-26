@@ -166,11 +166,9 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
-// Spawn exactly in the middle of the very first road tile
 bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
 bus.rotation.y = Math.PI / 2;
 scene.add(bus);
-let busReady = false;
 
 const loader = new GLTFLoader();
 loader.load('assets/bus.glb', (gltf) => {
@@ -186,7 +184,6 @@ loader.load('assets/bus.glb', (gltf) => {
   model.scale.setScalar(s);
   model.rotation.y = Math.PI;
   bus.add(model);
-  busReady = true;
 }, undefined, (e) => {
   console.warn('Bus model missing — using fallback box.', e);
   const body = new THREE.Mesh(
@@ -195,7 +192,6 @@ loader.load('assets/bus.glb', (gltf) => {
   );
   body.position.y = 1.4;
   bus.add(body);
-  busReady = true;
 });
 
 // ================= BUS STOPS =================
@@ -350,12 +346,10 @@ function updateBus(dt) {
 }
 
 // ================= CAMERA =================
-const birdStart = new THREE.Vector3(-120, 160, 140);
-const birdEnd   = new THREE.Vector3(120, 140, -140);
 let camInitialised = false;
 
 function updateCamera(dt) {
-  if (!busReady) return;
+  // Removed the busReady check so the camera works even if the model is still loading
 
   // --- INTRO: orbital bird view ---
   if (intro.active && !intro.transitioning) {
@@ -586,13 +580,17 @@ function drawMinimap() {
 
 // ================= INTRO BUTTON =================
 const introEl = document.getElementById('intro');
-document.getElementById('startBtn').onclick = () => {
+const startBtn = document.getElementById('startBtn');
+
+// Use pointerdown so it registers instantly on iPad
+startBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
   introEl.classList.add('fade-out');
   document.body.classList.remove('intro');
   setTimeout(() => { introEl.style.display = 'none'; }, 800);
   intro.transitioning = true;
   intro.transition = 0;
-};
+});
 
 // ================= LOOP =================
 let last = performance.now();
