@@ -13,15 +13,16 @@ canvas#game { display: block; touch-action: none; }
 .stat { display: flex; gap: 5px; align-items: center; }
 
 #minimap {
-  position: fixed; top: 12px; right: 12px;
+  position: fixed; top: 12px; left: 12px;
   background: rgba(0,0,0,0.55);
   border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
   transition: opacity 0.6s ease;
 }
 
+/* Moved speedo to the top right to avoid overlapping touch buttons */
 #speedo {
-  position: fixed; bottom: 24px; right: 24px;
-  width: 180px; background: rgba(0,0,0,0.55);
+  position: fixed; top: 12px; right: 12px;
+  width: 140px; background: rgba(0,0,0,0.55);
   border-radius: 12px; padding: 8px; color: #fff;
   transition: opacity 0.6s ease;
 }
@@ -32,7 +33,6 @@ canvas#game { display: block; touch-action: none; }
 }
 #speedText { font-size: 13px; display: block; margin-top: 6px; text-align: right; }
 
-/* Hide HUD and controls during intro */
 body.intro #topbar,
 body.intro #minimap,
 body.intro #speedo,
@@ -101,13 +101,13 @@ button:hover { background: #1d4ed8; }
   align-items: flex-end; z-index: 9999;
   transition: opacity 0.6s ease;
 }
-.d-pad { display: flex; gap: 15px; }
-.pedals { display: flex; gap: 15px; }
+.d-pad { display: flex; gap: 10px; }
+.pedals { display: flex; gap: 10px; align-items: flex-end; }
 #touch-controls button {
   background: rgba(0, 0, 0, 0.6); color: white;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%; width: 85px; height: 85px;
-  font-size: 28px; font-weight: bold;
+  border-radius: 50%; width: 65px; height: 65px;
+  font-size: 22px; font-weight: bold;
   -webkit-user-select: none; user-select: none;
   touch-action: manipulation;
 }
@@ -115,6 +115,7 @@ button:hover { background: #1d4ed8; }
   background: rgba(37, 99, 235, 0.8);
   transform: scale(0.95);
 }
-#btn-gas { width: 95px; height: 95px; border-radius: 25px; background: rgba(34, 197, 94, 0.6); }
-#btn-brake { width: 95px; height: 95px; border-radius: 25px; background: rgba(239, 68, 68, 0.6); }
-#btn-cam { width: 85px; height: 85px; border-radius: 15px; background: rgba(255, 255, 255, 0.2); font-size: 20px; }
+#btn-gas { width: 80px; height: 80px; border-radius: 20px; background: rgba(34, 197, 94, 0.6); }
+#btn-brake { width: 75px; height: 75px; border-radius: 20px; background: rgba(239, 68, 68, 0.6); }
+#btn-rev { width: 65px; height: 65px; border-radius: 15px; background: rgba(249, 115, 22, 0.6); font-size: 16px; }
+#btn-cam { width: 65px; height: 65px; border-radius: 15px; background: rgba(255, 255, 255, 0.2); font-size: 16px; }
