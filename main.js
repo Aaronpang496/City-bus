@@ -66,6 +66,7 @@ scene.add(ground);
 
 const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
 const lineMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+const collisionObjects = []; // Array to hold buildings and trees for collision
 
 function tileToWorld(r, c) {
   return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
@@ -112,6 +113,7 @@ function addTree(x, z) {
   g.add(leaves);
   g.position.set(x, 0, z);
   scene.add(g);
+  collisionObjects.push({ pos: new THREE.Vector3(x, 0, z), radius: 3 });
 }
 
 for (let r = 0; r < GRID; r++) {
@@ -151,6 +153,8 @@ for (let r = 0; r < GRID; r++) {
         const oz = (Math.random() - 0.5) * (TILE - d - 2);
         b.position.set(x + ox, h / 2, z + oz);
         scene.add(b);
+        // Add collision for buildings
+        collisionObjects.push({ pos: new THREE.Vector3(x + ox, 0, z + oz), radius: Math.max(w, d) / 2 });
       }
     } else {
       for (let i = 0; i < 4; i++) {
@@ -165,9 +169,9 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
-bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-// BUG FIX: Flip the bus to face the right way and drive forward
-bus.rotation.y = Math.PI / 2 + Math.PI; 
+// Spawn in the middle of the bottom road facing North
+bus.position.set(-HALF + TILE * 1.5, 0, -HALF + TILE * 0.5); 
+bus.rotation.y = Math.PI; // Face North (down the road)
 scene.add(bus);
 
 const loader = new GLTFLoader();
@@ -182,10 +186,8 @@ loader.load('assets/bus.glb', (gltf) => {
   const targetLength = 12;
   const s = targetLength / Math.max(size.x, size.z);
   model.scale.setScalar(s);
-  // BUG FIX: Removed the extra rotation here so the group rotation controls it
   bus.add(model);
 }, undefined, (e) => {
-  console.warn('Bus model missing — using fallback box.', e);
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(2.4, 2.2, 6),
     new THREE.MeshStandardMaterial({ color: 0xf2c94c })
@@ -195,7 +197,6 @@ loader.load('assets/bus.glb', (gltf) => {
 });
 
 const stops = [];
-
 function makeBusStop(x, z) {
   const g = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }));
@@ -220,14 +221,10 @@ function makeBusStop(x, z) {
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
 
-function isRoadTile(r, c) {
-  return r >= 0 && c >= 0 && r < GRID && c < GRID && map[r][c] === 0;
-}
-
 const stopCandidates = [];
 for (let r = 0; r < GRID; r++) {
   for (let c = 0; c < GRID; c++) {
-    if (isRoadTile(r, c) && Math.random() < 0.15) stopCandidates.push({ r, c });
+    if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
   }
 }
 let si = 0;
@@ -240,11 +237,8 @@ while (stops.length < 6 && si < stopCandidates.length) {
 const traffic = [];
 const trafficMats = [];
 for (let k = 0; k < 6; k++) {
-  trafficMats.push(new THREE.MeshStandardMaterial({
-    color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5),
-  }));
+  trafficMats.push(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
 }
-
 function spawnTraffic() {
   const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), trafficMats[Math.floor(Math.random() * trafficMats.length)]);
   const r = 4 * (1 + Math.floor(Math.random() * 2));
@@ -269,18 +263,14 @@ canvas.addEventListener('touchstart', (e) => {
   isDragging = true;
   previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 }, {passive: false});
-
 canvas.addEventListener('touchend', () => { isDragging = false; });
-
 canvas.addEventListener('touchmove', (e) => {
   if (!isDragging || state.cockpit) return;
   const deltaX = e.touches[0].clientX - previousMousePosition.x;
   const deltaY = e.touches[0].clientY - previousMousePosition.y;
-  
   camOffset.x -= deltaX * 0.01;
   camOffset.y -= deltaY * 0.01;
   camOffset.y = Math.max(-0.5, Math.min(1.0, camOffset.y));
-  
   previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 }, {passive: false});
 
@@ -307,9 +297,7 @@ function updateHUD() {
 function updateBus(dt) {
   const accel = (keys['w'] || keys['arrowup']) ? 28 : 0;
   const brake = (keys['s'] || keys['arrowdown'] || keys[' ']) ? 40 : 0;
-  const steerInput =
-    ((keys['a'] || keys['arrowleft']) ? 1 : 0) -
-    ((keys['d'] || keys['arrowright']) ? 1 : 0);
+  const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
 
   state.steer += (steerInput - state.steer) * Math.min(1, dt * 4);
   state.speed += (accel - brake) * dt;
@@ -319,9 +307,26 @@ function updateBus(dt) {
   const turnFactor = 0.9 * (state.speed / state.maxSpeed);
   bus.rotation.y += state.steer * turnFactor * dt;
 
-  const rad = bus.rotation.y;
-  bus.position.x += Math.sin(rad) * state.speed * dt * 0.5;
-  bus.position.z += Math.cos(rad) * state.speed * dt * 0.5;
+  // Collision Check
+  const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt * 0.5;
+  const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt * 0.5;
+  
+  let hit = false;
+  for (let obj of collisionObjects) {
+    if (Math.hypot(nextX - obj.pos.x, nextZ - obj.pos.z) < obj.radius + 2.5) {
+      hit = true;
+      break;
+    }
+  }
+
+  if (hit) {
+    state.speed = -10; // Bounce back
+    state.cond = Math.max(0, state.cond - 5);
+    updateHUD();
+  } else {
+    bus.position.x = nextX;
+    bus.position.z = nextZ;
+  }
 
   const lim = HALF - 4;
   bus.position.x = Math.max(-lim, Math.min(lim, bus.position.x));
@@ -352,8 +357,7 @@ function updateCamera(dt) {
     const chase = new THREE.Vector3(0, 8, -14).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     const from = new THREE.Vector3(0, 170, 220);
     camera.position.lerpVectors(from, chase, e);
-    const look = bus.position.clone();
-    camera.lookAt(look.x, 3, look.z);
+    camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
     camera.fov = 60 + 15 * (1 - e);
     camera.updateProjectionMatrix();
     if (intro.transition >= 1) {
@@ -366,10 +370,10 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    const local = new THREE.Vector3(0, 3.6, 4.5);
+    const local = new THREE.Vector3(0, 3.6, -4.5); // Look out the front window
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
-    const look = new THREE.Vector3(0, 3.4, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    const look = new THREE.Vector3(0, 3.4, -20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.lookAt(look);
     camera.fov = 75;
   } else {
@@ -402,7 +406,6 @@ function checkStops() {
       state.paused = true; 
       
       promptTextEl.textContent = "🚏 Bus stop reached! Allow passengers to board?";
-      
       $('promptYes').onclick = () => {
         state.money += 8;
         state.rep += 2;
@@ -412,7 +415,6 @@ function checkStops() {
         state.paused = false;
         updateHUD();
       };
-      
       $('promptNo').onclick = () => {
         state.rep = Math.max(0, state.rep - 1); 
         promptEl.classList.add('hidden');
@@ -430,7 +432,7 @@ function updateTraffic(dt) {
     car.position.x += car.userData.speed * dt;
     if (car.position.x > HALF) car.position.x = -HALF;
     if (car.position.distanceTo(bus.position) < 3.5) {
-      state.speed = 0;
+      state.speed = -10; // Bounce back
       state.cond = Math.max(0, state.cond - 15);
       state.rep = Math.max(0, state.rep - 5);
       updateHUD();
@@ -438,40 +440,7 @@ function updateTraffic(dt) {
   });
 }
 
-const promptEl = $('prompt');
-const promptTextEl = $('promptText');
-let pendingPrompt = null;
-
-const prompts = [
-  { text: "🚶 A passenger is running for the bus. Wait?", yes: { rep: 3, money: -2 }, no: { rep: -3, money: 1 } },
-  { text: "🎫 Someone can't pay the fare. Let them ride free?", yes: { rep: 4, money: -4 }, no: { rep: -4, money: 0 } },
-  { text: "🚦 Yellow light ahead — speed up or stop?", yes: { money: 2, cond: -5 }, no: { rep: 1 } },
-];
-
-function maybePrompt() {
-  if (state.paused || pendingPrompt) return;
-  if (Math.random() < 0.0008) {
-    pendingPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-    state.paused = true;
-    promptTextEl.textContent = pendingPrompt.text;
-    
-    $('promptYes').onclick = () => resolvePrompt(true);
-    $('promptNo').onclick = () => resolvePrompt(false);
-
-    promptEl.classList.remove('hidden');
-  }
-}
-
-function resolvePrompt(yes) {
-  const e = yes ? pendingPrompt.yes : pendingPrompt.no;
-  state.rep = Math.max(0, state.rep + (e.rep || 0));
-  state.money += (e.money || 0);
-  state.cond = Math.max(0, state.cond + (e.cond || 0));
-  pendingPrompt = null;
-  promptEl.classList.add('hidden');
-  state.paused = false;
-  updateHUD();
-}
+// (Random prompts have been deleted)
 
 let dayTimer = 0;
 const DAY_LENGTH = 60;
@@ -515,7 +484,10 @@ function endDay() {
   updateHUD();
 }
 
+const promptEl = $('prompt');
+const promptTextEl = $('promptText');
 const overlay = $('overlay');
+
 function showOverlay(title, text, btn, cb) {
   $('overlayTitle').textContent = title;
   $('overlayText').textContent = text;
@@ -601,7 +573,6 @@ function animate() {
     updateBus(dt);
     updateTraffic(dt);
     checkStops();
-    maybePrompt();
     updateDay(dt);
     updateHUD();
   }
@@ -634,16 +605,13 @@ bindTouch('btn-right', 'd');
 bindTouch('btn-gas', 'w');
 bindTouch('btn-brake', 's');
 
-// BUG FIX: The camera button needs both touch and click events to work on iPad
 const camBtn = document.getElementById('btn-cam');
 if (camBtn) {
   camBtn.style.pointerEvents = 'auto';
-  
   function toggleCam(e) {
     if (e) e.preventDefault();
     state.cockpit = !state.cockpit;
   }
-  
   camBtn.addEventListener('click', toggleCam);
   camBtn.addEventListener('touchstart', toggleCam, {passive: false});
 }
