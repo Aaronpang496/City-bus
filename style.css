@@ -2,7 +2,6 @@
 body { overflow: hidden; font-family: system-ui, sans-serif; background: #111; }
 canvas#game { display: block; touch-action: none; }
 
-/* ---------- HUD ---------- */
 #topbar {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
   display: flex; gap: 14px; align-items: center;
@@ -33,7 +32,6 @@ canvas#game { display: block; touch-action: none; }
 }
 #speedText { font-size: 13px; display: block; margin-top: 6px; text-align: right; }
 
-/* ---------- Hide HUD during intro ---------- */
 body.intro #topbar,
 body.intro #minimap,
 body.intro #speedo,
@@ -43,7 +41,6 @@ body.intro #credit {
   pointer-events: none;
 }
 
-/* ---------- Prompt / overlay ---------- */
 #prompt, #overlay {
   position: fixed; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
@@ -72,7 +69,6 @@ button:hover { background: #1d4ed8; }
   transition: opacity 0.6s ease;
 }
 
-/* ---------- Cinematic intro ---------- */
 #intro {
   position: fixed; inset: 0; z-index: 20;
   display: flex; flex-direction: column;
@@ -96,7 +92,6 @@ button:hover { background: #1d4ed8; }
 #intro button:hover { transform: scale(1.05); background: #1d4ed8; }
 #intro.fade-out { opacity: 0; pointer-events: none; }
 
-/* ---------- Touch Controls ---------- */
 #touch-controls {
   position: fixed; bottom: 20px; left: 20px; right: 20px;
   display: flex !important; 
