@@ -38,8 +38,7 @@ body.intro #topbar,
 body.intro #minimap,
 body.intro #speedo,
 body.intro #controls,
-body.intro #credit,
-body.intro #touch-controls {
+body.intro #credit {
   opacity: 0;
   pointer-events: none;
 }
@@ -97,12 +96,14 @@ button:hover { background: #1d4ed8; }
 #intro button:hover { transform: scale(1.05); background: #1d4ed8; }
 #intro.fade-out { opacity: 0; pointer-events: none; }
 
-/* ---------- Touch Controls ---------- */
+/* ---------- Touch Controls (FORCED TO SHOW) ---------- */
 #touch-controls {
   position: fixed; bottom: 20px; left: 20px; right: 20px;
-  display: flex; justify-content: space-between;
-  align-items: flex-end; z-index: 100;
-  transition: opacity 0.6s ease;
+  display: flex !important; /* Forces them to show */
+  justify-content: space-between;
+  align-items: flex-end; z-index: 9999;
+  opacity: 1 !important; 
+  pointer-events: auto !important;
 }
 .d-pad { display: flex; gap: 10px; }
 .pedals { display: flex; gap: 10px; }
