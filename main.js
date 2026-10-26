@@ -573,6 +573,15 @@ function drawMinimap() {
   mctx.restore();
 }
 
+// ================= FORCE SHOW TOUCH CONTROLS =================
+// We force the CSS to show the buttons in the code itself
+const touchControls = document.getElementById('touch-controls');
+if (touchControls) {
+  touchControls.style.display = 'flex';
+  touchControls.style.opacity = '1';
+  touchControls.style.pointerEvents = 'auto';
+}
+
 // ================= INTRO BUTTON =================
 const introEl = document.getElementById('intro');
 const startBtn = document.getElementById('startBtn');
@@ -587,6 +596,7 @@ function startGame(e) {
 }
 
 startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchstart', startGame, {passive: false});
 
 // ================= LOOP =================
 let last = performance.now();
@@ -615,12 +625,15 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// ================= FIXED TOUCH CONTROLS =================
+// ================= TOUCH CONTROLS =================
 function bindTouch(id, key) {
   const btn = document.getElementById(id);
   if (!btn) return;
   
-  // pointerdown and pointerup work flawlessly on iPad/iPhone touchscreens
+  // Force the buttons to be fully interactive
+  btn.style.pointerEvents = 'auto';
+  btn.style.zIndex = '99999';
+
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     keys[key] = true;
@@ -636,9 +649,11 @@ function bindTouch(id, key) {
     keys[key] = false;
   });
   
-  // fallback for mouse
+  // fallback
   btn.addEventListener('mousedown', () => keys[key] = true);
   btn.addEventListener('mouseup', () => keys[key] = false);
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; }, {passive: false});
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; }, {passive: false});
 }
 bindTouch('btn-left', 'a');
 bindTouch('btn-right', 'd');
