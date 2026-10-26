@@ -8,7 +8,7 @@ const state = {
   day: 1, maxDays: 20,
   speed: 0, maxSpeed: 80,
   steer: 0,
-  paused: true,           // frozen during intro
+  paused: true,           
   gameOver: false,
   passengers: 0,
   cockpit: false,
@@ -166,8 +166,8 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
-// FIX: Spawn on the bottom road instead of center park
-bus.position.set(-HALF + 15, 0, -HALF + 15); 
+// Spawn exactly in the middle of the very first road tile
+bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
 bus.rotation.y = Math.PI / 2;
 scene.add(bus);
 let busReady = false;
@@ -380,7 +380,7 @@ function updateCamera(dt) {
     const chase = new THREE.Vector3(0, 8, -14)
       .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
       .add(bus.position);
-    const from = new THREE.Vector3(0, 170, 220); // matches end of orbital
+    const from = new THREE.Vector3(0, 170, 220);
     camera.position.lerpVectors(from, chase, e);
     const look = bus.position.clone();
     camera.lookAt(look.x, 3, look.z);
@@ -634,7 +634,6 @@ function bindTouch(id, key) {
     e.preventDefault(); 
     keys[key] = false; 
   });
-  // fallback for mouse testing
   btn.addEventListener('mousedown', () => keys[key] = true);
   btn.addEventListener('mouseup', () => keys[key] = false);
   btn.addEventListener('mouseleave', () => keys[key] = false);
