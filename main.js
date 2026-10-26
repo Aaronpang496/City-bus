@@ -573,18 +573,21 @@ function drawMinimap() {
   mctx.restore();
 }
 
-// ================= INTRO BUTTON =================
+// ================= INTRO BUTTON (iOS FIX) =================
 const introEl = document.getElementById('intro');
 const startBtn = document.getElementById('startBtn');
 
-startBtn.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
+function startGame(e) {
+  if (e) e.preventDefault();
   introEl.classList.add('fade-out');
   document.body.classList.remove('intro');
   setTimeout(() => { introEl.style.display = 'none'; }, 800);
   intro.transitioning = true;
   intro.transition = 0;
-});
+}
+
+startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchstart', startGame, {passive: false});
 
 // ================= LOOP =================
 let last = performance.now();
