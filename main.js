@@ -66,7 +66,7 @@ scene.add(ground);
 
 const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
 const lineMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
-const collisionObjects = []; // Array to hold buildings and trees for collision
+const collisionObjects = [];
 
 function tileToWorld(r, c) {
   return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
@@ -153,7 +153,6 @@ for (let r = 0; r < GRID; r++) {
         const oz = (Math.random() - 0.5) * (TILE - d - 2);
         b.position.set(x + ox, h / 2, z + oz);
         scene.add(b);
-        // Add collision for buildings
         collisionObjects.push({ pos: new THREE.Vector3(x + ox, 0, z + oz), radius: Math.max(w, d) / 2 });
       }
     } else {
@@ -169,9 +168,8 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
-// Spawn in the middle of the bottom road facing North
-bus.position.set(-HALF + TILE * 1.5, 0, -HALF + TILE * 0.5); 
-bus.rotation.y = Math.PI; // Face North (down the road)
+bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
+bus.rotation.y = Math.PI / 2; 
 scene.add(bus);
 
 const loader = new GLTFLoader();
@@ -307,7 +305,6 @@ function updateBus(dt) {
   const turnFactor = 0.9 * (state.speed / state.maxSpeed);
   bus.rotation.y += state.steer * turnFactor * dt;
 
-  // Collision Check
   const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt * 0.5;
   const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt * 0.5;
   
@@ -320,7 +317,7 @@ function updateBus(dt) {
   }
 
   if (hit) {
-    state.speed = -10; // Bounce back
+    state.speed = -10;
     state.cond = Math.max(0, state.cond - 5);
     updateHUD();
   } else {
@@ -370,7 +367,7 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    const local = new THREE.Vector3(0, 3.6, -4.5); // Look out the front window
+    const local = new THREE.Vector3(0, 3.6, -4.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
     const look = new THREE.Vector3(0, 3.4, -20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
@@ -432,15 +429,13 @@ function updateTraffic(dt) {
     car.position.x += car.userData.speed * dt;
     if (car.position.x > HALF) car.position.x = -HALF;
     if (car.position.distanceTo(bus.position) < 3.5) {
-      state.speed = -10; // Bounce back
+      state.speed = -10; 
       state.cond = Math.max(0, state.cond - 15);
       state.rep = Math.max(0, state.rep - 5);
       updateHUD();
     }
   });
 }
-
-// (Random prompts have been deleted)
 
 let dayTimer = 0;
 const DAY_LENGTH = 60;
@@ -540,13 +535,6 @@ function drawMinimap() {
   mctx.restore();
 }
 
-const touchControls = document.getElementById('touch-controls');
-if (touchControls) {
-  touchControls.style.display = 'flex';
-  touchControls.style.opacity = '1';
-  touchControls.style.pointerEvents = 'auto';
-}
-
 const introEl = document.getElementById('intro');
 const startBtn = document.getElementById('startBtn');
 
@@ -590,9 +578,6 @@ addEventListener('resize', () => {
 function bindTouch(id, key) {
   const btn = document.getElementById(id);
   if (!btn) return;
-  
-  btn.style.pointerEvents = 'auto';
-  btn.style.zIndex = '99999';
 
   btn.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[key] = true; });
   btn.addEventListener('pointerup', (e) => { e.preventDefault(); keys[key] = false; });
@@ -607,7 +592,6 @@ bindTouch('btn-brake', 's');
 
 const camBtn = document.getElementById('btn-cam');
 if (camBtn) {
-  camBtn.style.pointerEvents = 'auto';
   function toggleCam(e) {
     if (e) e.preventDefault();
     state.cockpit = !state.cockpit;
