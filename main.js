@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-// ================= STATE =================
 const state = {
   money: 200, rep: 50, fuel: 100, cond: 100,
   day: 1, maxDays: 20,
@@ -26,7 +25,6 @@ const intro = {
   transitioning: false,
 };
 
-// ================= RENDERER =================
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(innerWidth, innerHeight);
@@ -46,7 +44,6 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.3);
 sun.position.set(60, 100, 40);
 scene.add(sun);
 
-// ================= CITY GRID =================
 const GRID = 14;
 const TILE = 30;
 const HALF = (GRID * TILE) / 2;
@@ -169,7 +166,8 @@ for (let r = 0; r < GRID; r++) {
 // ================= BUS =================
 const bus = new THREE.Group();
 bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-bus.rotation.y = Math.PI / 2;
+// FLIP THE BUS so it faces the right way
+bus.rotation.y = -Math.PI / 2;
 scene.add(bus);
 
 const loader = new GLTFLoader();
@@ -196,53 +194,27 @@ loader.load('assets/bus.glb', (gltf) => {
   bus.add(body);
 });
 
-// ================= BUS STOPS =================
 const stops = [];
 
 function makeBusStop(x, z) {
   const g = new THREE.Group();
-
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.12, 0.12, 4, 8),
-    new THREE.MeshStandardMaterial({ color: 0x999999 })
-  );
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }));
   pole.position.y = 2;
   g.add(pole);
-
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(1.6, 1.2, 0.15),
-    new THREE.MeshStandardMaterial({ color: 0x2563eb })
-  );
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x2563eb }));
   sign.position.set(0, 4.2, 0);
   g.add(sign);
-
-  const shelterRoof = new THREE.Mesh(
-    new THREE.BoxGeometry(6, 0.2, 3),
-    new THREE.MeshStandardMaterial({ color: 0x1e40af })
-  );
+  const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af }));
   shelterRoof.position.set(0, 3, -2);
   g.add(shelterRoof);
-
-  const shelterBack = new THREE.Mesh(
-    new THREE.BoxGeometry(6, 2.5, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })
-  );
+  const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 }));
   shelterBack.position.set(0, 1.25, -3.4);
   g.add(shelterBack);
-
-  const bench = new THREE.Mesh(
-    new THREE.BoxGeometry(4, 0.3, 0.8),
-    new THREE.MeshStandardMaterial({ color: 0x7c4a1e })
-  );
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e }));
   bench.position.set(0, 0.8, -2.6);
   g.add(bench);
-
-  const zone = new THREE.Mesh(
-    new THREE.BoxGeometry(6, 1, 6),
-    new THREE.MeshBasicMaterial({ visible: false })
-  );
+  const zone = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 6), new THREE.MeshBasicMaterial({ visible: false }));
   g.add(zone);
-
   g.position.set(x, 0, z);
   scene.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
@@ -265,7 +237,6 @@ while (stops.length < 6 && si < stopCandidates.length) {
   stops.push(makeBusStop(x + TILE / 2 - 2, z));
 }
 
-// ================= TRAFFIC =================
 const traffic = [];
 const trafficMats = [];
 for (let k = 0; k < 6; k++) {
@@ -275,10 +246,7 @@ for (let k = 0; k < 6; k++) {
 }
 
 function spawnTraffic() {
-  const car = new THREE.Mesh(
-    new THREE.BoxGeometry(1.8, 1.4, 4),
-    trafficMats[Math.floor(Math.random() * trafficMats.length)]
-  );
+  const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), trafficMats[Math.floor(Math.random() * trafficMats.length)]);
   const r = 4 * (1 + Math.floor(Math.random() * 2));
   const { z } = tileToWorld(r, 0);
   car.position.set(-HALF + 2, 0.7, z);
@@ -288,7 +256,6 @@ function spawnTraffic() {
 }
 for (let k = 0; k < 10; k++) spawnTraffic();
 
-// ================= INPUT =================
 const keys = {};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -317,7 +284,6 @@ canvas.addEventListener('touchmove', (e) => {
   previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 }, {passive: false});
 
-// ================= HUD =================
 const $ = id => document.getElementById(id);
 
 function updateHUD() {
@@ -338,7 +304,6 @@ function updateHUD() {
   }
 }
 
-// ================= DRIVING =================
 function updateBus(dt) {
   const accel = (keys['w'] || keys['arrowup']) ? 28 : 0;
   const brake = (keys['s'] || keys['arrowdown'] || keys[' ']) ? 40 : 0;
@@ -367,7 +332,6 @@ function updateBus(dt) {
   if (state.fuel <= 0) state.speed = 0;
 }
 
-// ================= CAMERA =================
 let camInitialised = false;
 
 function updateCamera(dt) {
@@ -375,11 +339,7 @@ function updateCamera(dt) {
     const t = Math.min(1, (performance.now() - intro.startTime) / intro.duration);
     const ease = t * t * (3 - 2 * t);
     const ang = -0.6 + ease * 0.9;
-    camera.position.set(
-      Math.sin(ang) * 220,
-      170 - ease * 25,
-      Math.cos(ang) * 220
-    );
+    camera.position.set(Math.sin(ang) * 220, 170 - ease * 25, Math.cos(ang) * 220);
     camera.lookAt(0, 0, 0);
     camera.fov = 55;
     camera.updateProjectionMatrix();
@@ -389,9 +349,7 @@ function updateCamera(dt) {
   if (intro.transitioning) {
     intro.transition = Math.min(1, intro.transition + dt * 0.9);
     const e = intro.transition * intro.transition * (3 - 2 * intro.transition);
-    const chase = new THREE.Vector3(0, 8, -14)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
-      .add(bus.position);
+    const chase = new THREE.Vector3(0, 8, -14).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     const from = new THREE.Vector3(0, 170, 220);
     camera.position.lerpVectors(from, chase, e);
     const look = bus.position.clone();
@@ -409,14 +367,9 @@ function updateCamera(dt) {
 
   if (state.cockpit) {
     const local = new THREE.Vector3(0, 3.6, 4.5);
-    const world = local.clone()
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
-      .add(bus.position);
+    const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
-    
-    const look = new THREE.Vector3(0, 3.4, 20)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y)
-      .add(bus.position);
+    const look = new THREE.Vector3(0, 3.4, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.lookAt(look);
     camera.fov = 75;
   } else {
@@ -427,21 +380,18 @@ function updateCamera(dt) {
     offset.y += camOffset.y * 10;
 
     const target = bus.position.clone().add(offset);
-    
     if (!camInitialised) {
       camera.position.copy(target);
       camInitialised = true;
     } else {
       camera.position.lerp(target, Math.min(1, dt * 4));
     }
-    
     camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
     camera.fov = 60;
   }
   camera.updateProjectionMatrix();
 }
 
-// ================= STOPS =================
 function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
@@ -475,7 +425,6 @@ function checkStops() {
   });
 }
 
-// ================= TRAFFIC =================
 function updateTraffic(dt) {
   traffic.forEach(car => {
     car.position.x += car.userData.speed * dt;
@@ -489,7 +438,6 @@ function updateTraffic(dt) {
   });
 }
 
-// ================= PROMPTS =================
 const promptEl = $('prompt');
 const promptTextEl = $('promptText');
 let pendingPrompt = null;
@@ -525,7 +473,6 @@ function resolvePrompt(yes) {
   updateHUD();
 }
 
-// ================= DAY LOOP =================
 let dayTimer = 0;
 const DAY_LENGTH = 60;
 
@@ -578,7 +525,6 @@ function showOverlay(title, text, btn, cb) {
   overlay.classList.remove('hidden');
 }
 
-// ================= MINIMAP =================
 const mm = document.getElementById('minimap');
 const mctx = mm.getContext('2d');
 
@@ -622,7 +568,6 @@ function drawMinimap() {
   mctx.restore();
 }
 
-// ================= FORCE SHOW TOUCH CONTROLS =================
 const touchControls = document.getElementById('touch-controls');
 if (touchControls) {
   touchControls.style.display = 'flex';
@@ -630,7 +575,6 @@ if (touchControls) {
   touchControls.style.pointerEvents = 'auto';
 }
 
-// ================= INTRO BUTTON =================
 const introEl = document.getElementById('intro');
 const startBtn = document.getElementById('startBtn');
 
@@ -646,7 +590,6 @@ function startGame(e) {
 startBtn.addEventListener('click', startGame);
 startBtn.addEventListener('touchstart', startGame, {passive: false});
 
-// ================= LOOP =================
 let last = performance.now();
 function animate() {
   requestAnimationFrame(animate);
@@ -673,7 +616,6 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// ================= TOUCH CONTROLS =================
 function bindTouch(id, key) {
   const btn = document.getElementById(id);
   if (!btn) return;
@@ -681,21 +623,9 @@ function bindTouch(id, key) {
   btn.style.pointerEvents = 'auto';
   btn.style.zIndex = '99999';
 
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    keys[key] = true;
-  });
-  
-  btn.addEventListener('pointerup', (e) => {
-    e.preventDefault();
-    keys[key] = false;
-  });
-  
-  btn.addEventListener('pointerleave', (e) => {
-    e.preventDefault();
-    keys[key] = false;
-  });
-  
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[key] = true; });
+  btn.addEventListener('pointerup', (e) => { e.preventDefault(); keys[key] = false; });
+  btn.addEventListener('pointerleave', (e) => { e.preventDefault(); keys[key] = false; });
   btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; }, {passive: false});
   btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; }, {passive: false});
 }
@@ -704,18 +634,11 @@ bindTouch('btn-right', 'd');
 bindTouch('btn-gas', 'w');
 bindTouch('btn-brake', 's');
 
-// Bind the Camera Button
 const camBtn = document.getElementById('btn-cam');
 if (camBtn) {
   camBtn.style.pointerEvents = 'auto';
-  camBtn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    state.cockpit = !state.cockpit;
-  });
-  camBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    state.cockpit = !state.cockpit;
-  }, {passive: false});
+  camBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; });
+  camBtn.addEventListener('touchstart', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; }, {passive: false});
 }
 
 updateHUD();
