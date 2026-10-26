@@ -300,22 +300,26 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// Camera Drag Controls
-canvas.addEventListener('pointerdown', (e) => { isDragging = true; previousMousePosition = { x: e.offsetX, y: e.offsetY }; });
-canvas.addEventListener('pointerup', () => { isDragging = false; });
-canvas.addEventListener('pointerleave', () => { isDragging = false; });
-canvas.addEventListener('pointermove', (e) => {
-  if (!isDragging) return;
-  const deltaX = e.offsetX - previousMousePosition.x;
-  const deltaY = e.offsetY - previousMousePosition.y;
+// Touch Drag Camera Controls
+canvas.addEventListener('touchstart', (e) => {
+  if (state.cockpit) return; // Don't rotate in cockpit
+  isDragging = true;
+  previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, {passive: false});
+
+canvas.addEventListener('touchend', () => { isDragging = false; });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging || state.cockpit) return;
+  const deltaX = e.touches[0].clientX - previousMousePosition.x;
+  const deltaY = e.touches[0].clientY - previousMousePosition.y;
   
-  camOffset.x -= deltaX * 0.005;
-  camOffset.y -= deltaY * 0.005;
-  // Clamp vertical rotation
+  camOffset.x -= deltaX * 0.01;
+  camOffset.y -= deltaY * 0.01;
   camOffset.y = Math.max(-0.5, Math.min(1.0, camOffset.y));
   
-  previousMousePosition = { x: e.offsetX, y: e.offsetY };
-});
+  previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, {passive: false});
 
 // ================= HUD =================
 const $ = id => document.getElementById(id);
@@ -420,18 +424,10 @@ function updateCamera(dt) {
     camera.lookAt(look);
     camera.fov = 75;
   } else {
-    // FIXED CHASE CAMERA ANGLE + DRAG OFFSET
-    // Base offset is (0, 8, -14). We apply the camOffset drag rotation.
     const offset = new THREE.Vector3(0, 8, -14);
-    
-    // Apply user drag rotation
     const rotationMatrix = new THREE.Matrix4().makeRotationY(camOffset.x);
     offset.applyMatrix4(rotationMatrix);
-    
-    // Apply bus rotation
     offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
-    
-    // Adjust height based on drag
     offset.y += camOffset.y * 10;
 
     const target = bus.position.clone().add(offset);
@@ -443,7 +439,6 @@ function updateCamera(dt) {
       camera.position.lerp(target, Math.min(1, dt * 4));
     }
     
-    // FIXED: The camera now looks directly at the bus center, not the road ahead
     camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
     camera.fov = 60;
   }
@@ -455,12 +450,34 @@ function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-    if (wp.distanceTo(bus.position) < 5 && state.speed < 5) {
+    
+    // If bus is near the stop AND is slowing down (speed < 5)
+    if (wp.distanceTo(bus.position) < 6 && state.speed < 5) {
       s.used = true;
-      state.money += 8;
-      state.rep += 2;
-      state.passengers++;
-      updateHUD();
+      state.paused = true; // Stop the game
+      
+      // Show the passenger prompt
+      promptTextEl.textContent = "🚏 Bus stop reached! Allow passengers to board?";
+      
+      // Override the prompt buttons just for this specific stop
+      $('promptYes').onclick = () => {
+        state.money += 8;
+        state.rep += 2;
+        state.passengers++;
+        s.zone.material.color.set(0x22c55e); // Turn zone green
+        promptEl.classList.add('hidden');
+        state.paused = false;
+        updateHUD();
+      };
+      
+      $('promptNo').onclick = () => {
+        state.rep = Math.max(0, state.rep - 1); // Penalty for skipping
+        promptEl.classList.add('hidden');
+        state.paused = false;
+        updateHUD();
+      };
+      
+      promptEl.classList.remove('hidden');
     }
   });
 }
@@ -496,12 +513,14 @@ function maybePrompt() {
     pendingPrompt = prompts[Math.floor(Math.random() * prompts.length)];
     state.paused = true;
     promptTextEl.textContent = pendingPrompt.text;
+    
+    // Restore default random prompt buttons
+    $('promptYes').onclick = () => resolvePrompt(true);
+    $('promptNo').onclick = () => resolvePrompt(false);
+
     promptEl.classList.remove('hidden');
   }
 }
-
-$('promptYes').onclick = () => resolvePrompt(true);
-$('promptNo').onclick = () => resolvePrompt(false);
 
 function resolvePrompt(yes) {
   const e = yes ? pendingPrompt.yes : pendingPrompt.no;
