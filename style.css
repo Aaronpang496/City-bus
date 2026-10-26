@@ -12,6 +12,7 @@ canvas#game { display: block; touch-action: none; }
 }
 .stat { display: flex; gap: 5px; align-items: center; }
 
+/* Minimap moved to top left */
 #minimap {
   position: fixed; top: 12px; left: 12px;
   background: rgba(0,0,0,0.55);
@@ -19,7 +20,7 @@ canvas#game { display: block; touch-action: none; }
   transition: opacity 0.6s ease;
 }
 
-/* Moved speedo to the top right to avoid overlapping touch buttons */
+/* Speedometer moved to top right under minimap */
 #speedo {
   position: fixed; top: 12px; right: 12px;
   width: 140px; background: rgba(0,0,0,0.55);
@@ -43,19 +44,22 @@ body.intro #touch-controls {
   pointer-events: none;
 }
 
+/* Made prompt z-index super high so it sits above the touch controls */
 #prompt, #overlay {
   position: fixed; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.7); color: #fff; text-align: center;
-  padding: 24px; z-index: 10;
+  background: rgba(0,0,0,0.85); color: #fff; text-align: center;
+  padding: 24px; z-index: 999999;
 }
-#prompt p, #overlay p { font-size: 20px; max-width: 480px; margin-bottom: 18px; }
+#prompt p, #overlay p { font-size: 22px; max-width: 480px; margin-bottom: 18px; font-weight: bold; }
 .buttons { display: flex; gap: 12px; }
 button {
-  padding: 10px 22px; font-size: 16px; border: none; border-radius: 8px;
+  padding: 12px 24px; font-size: 18px; border: none; border-radius: 8px;
   cursor: pointer; background: #2563eb; color: #fff;
 }
 button:hover { background: #1d4ed8; }
+#promptYes { background: #22c55e; }
+#promptNo { background: #ef4444; }
 .hidden { display: none !important; }
 
 #controls {
