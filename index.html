@@ -19,6 +19,7 @@
     <div class="stat"><span>🔧</span><b id="cond">100</b></div>
   </div>
 
+  <!-- Minimap moved to top-left so it doesn't clash with speedo -->
   <canvas id="minimap" width="180" height="180"></canvas>
 
   <div id="speedo">
@@ -39,11 +40,12 @@
     </div>
   </div>
 
+  <!-- Prompt menu (z-index fixed in CSS) -->
   <div id="prompt" class="hidden">
-    <p id="promptText"></p>
+    <p id="promptText">🚏 Bus stop reached! Allow passengers to board?</p>
     <div class="buttons">
-      <button id="promptYes">Yes</button>
-      <button id="promptNo">No</button>
+      <button id="promptYes">Yes (+$8)</button>
+      <button id="promptNo">No (-1 Rep)</button>
     </div>
   </div>
 
