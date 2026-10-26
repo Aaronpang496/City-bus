@@ -166,6 +166,9 @@ for (let r = 0; r < GRID; r++) {
 
 // ================= BUS =================
 const bus = new THREE.Group();
+// FIX: Spawn on the bottom road instead of center park
+bus.position.set(-HALF + 15, 0, -HALF + 15); 
+bus.rotation.y = Math.PI / 2;
 scene.add(bus);
 let busReady = false;
 
@@ -617,6 +620,29 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+// ================= TOUCH CONTROLS =================
+function bindTouch(id, key) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  
+  btn.addEventListener('touchstart', (e) => { 
+    e.preventDefault(); 
+    keys[key] = true; 
+  });
+  btn.addEventListener('touchend', (e) => { 
+    e.preventDefault(); 
+    keys[key] = false; 
+  });
+  // fallback for mouse testing
+  btn.addEventListener('mousedown', () => keys[key] = true);
+  btn.addEventListener('mouseup', () => keys[key] = false);
+  btn.addEventListener('mouseleave', () => keys[key] = false);
+}
+bindTouch('btn-left', 'a');
+bindTouch('btn-right', 'd');
+bindTouch('btn-gas', 'w');
+bindTouch('btn-brake', 's');
 
 updateHUD();
 animate();
