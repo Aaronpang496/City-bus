@@ -11,118 +11,75 @@
 
     #topbar {
       position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-      display: flex; gap: 14px; align-items: center;
-      background: rgba(0,0,0,0.55); padding: 10px 18px;
-      border-radius: 12px; color: #fff; font-size: 15px;
-      backdrop-filter: blur(6px); white-space: nowrap;
-      transition: opacity 0.6s ease;
+      display: flex; gap: 10px; align-items: center;
+      background: rgba(0,0,0,0.65); padding: 10px 18px;
+      border-radius: 12px; color: #fff; font-size: 14px;
+      backdrop-filter: blur(6px); white-space: nowrap; transition: opacity 0.6s ease;
+      border: 1px solid rgba(255,255,255,0.1);
     }
     .stat { display: flex; gap: 5px; align-items: center; }
+    .stat b { color: #facc15; }
+    
+    /* Timer and Combo styling */
+    #timer { font-size: 18px; font-weight: bold; color: #ef4444; margin-left: 5px; }
+    #combo {
+      position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+      color: #facc15; font-size: 28px; font-weight: bold; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+      transition: opacity 0.3s ease; opacity: 0; pointer-events: none;
+    }
 
     #minimap {
-      position: fixed; top: 12px; left: 12px;
-      background: rgba(0,0,0,0.55);
-      border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
-      transition: opacity 0.6s ease;
+      position: fixed; top: 12px; left: 12px; background: rgba(0,0,0,0.55);
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); transition: opacity 0.6s ease;
     }
 
     #speedo {
-      position: fixed; top: 12px; right: 12px;
-      width: 140px; background: rgba(0,0,0,0.55);
-      border-radius: 12px; padding: 8px; color: #fff;
-      transition: opacity 0.6s ease;
+      position: fixed; top: 12px; right: 12px; width: 140px; background: rgba(0,0,0,0.55);
+      border-radius: 12px; padding: 8px; color: #fff; transition: opacity 0.6s ease;
     }
-    #speedBar {
-      height: 8px; width: 0%;
-      background: linear-gradient(90deg,#4ade80,#facc15,#ef4444);
-      border-radius: 4px; transition: width 0.1s;
-    }
+    #speedBar { height: 8px; width: 0%; background: linear-gradient(90deg,#4ade80,#facc15,#ef4444); border-radius: 4px; transition: width 0.1s; }
     #speedText { font-size: 13px; display: block; margin-top: 6px; text-align: right; }
 
-    body.intro #topbar,
-    body.intro #minimap,
-    body.intro #speedo,
-    body.intro #controls,
-    body.intro #credit,
-    body.intro #touch-controls {
-      opacity: 0;
-      pointer-events: none;
-    }
+    body.intro #topbar, body.intro #minimap, body.intro #speedo, body.intro #controls, body.intro #credit, body.intro #touch-controls { opacity: 0; pointer-events: none; }
 
-    #prompt, #overlay {
+    #prompt, #overlay, #shop {
       position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.85); color: #fff; text-align: center;
+      align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: #fff; text-align: center;
       padding: 24px; z-index: 999999;
     }
-    #prompt p, #overlay p { font-size: 22px; max-width: 480px; margin-bottom: 18px; font-weight: bold; }
-    .buttons { display: flex; gap: 12px; }
+    #prompt p, #overlay p, #shop p { font-size: 22px; max-width: 480px; margin-bottom: 18px; font-weight: bold; }
+    .buttons { display: flex; gap: 12px; margin-top: 10px; }
     button {
       padding: 12px 24px; font-size: 18px; border: none; border-radius: 8px;
-      cursor: pointer; background: #2563eb; color: #fff;
+      cursor: pointer; background: #2563eb; color: #fff; transition: transform 0.1s;
     }
-    button:hover { background: #1d4ed8; }
+    button:hover { background: #1d4ed8; transform: scale(1.05); }
     #promptYes { background: #22c55e; }
     #promptNo { background: #ef4444; }
     .hidden { display: none !important; }
 
-    #controls {
-      position: fixed; bottom: 24px; left: 24px;
-      color: #fff; background: rgba(0,0,0,0.55);
-      padding: 8px 14px; border-radius: 8px; font-size: 13px;
-      transition: opacity 0.6s ease;
-    }
-    #credit {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      color: #ddd; background: rgba(0,0,0,0.35);
-      padding: 4px 10px; border-radius: 6px; font-size: 10px;
-      transition: opacity 0.6s ease;
-    }
+    /* Shop UI */
+    .shop-item { background: rgba(255,255,255,0.1); padding: 15px; margin: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 500px; }
+    .shop-item h3 { font-size: 18px; margin-bottom: 5px; }
+    .shop-item p { font-size: 12px; margin: 0; opacity: 0.7; }
+    .shop-btn { background: #f59e0b; color: #000; padding: 8px 16px; font-weight: bold; }
+    .shop-btn:disabled { background: #555; color: #999; cursor: not-allowed; transform: none; }
 
-    #intro {
-      position: fixed; inset: 0; z-index: 20;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: radial-gradient(circle at 50% 40%, rgba(0,0,0,0.25), rgba(0,0,0,0.8));
-      color: #fff; text-align: center; padding: 24px;
-      transition: opacity 0.8s ease;
-    }
+    #controls { position: fixed; bottom: 24px; left: 24px; color: #fff; background: rgba(0,0,0,0.55); padding: 8px 14px; border-radius: 8px; font-size: 13px; transition: opacity 0.6s ease; }
+    #credit { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); color: #ddd; background: rgba(0,0,0,0.35); padding: 4px 10px; border-radius: 6px; font-size: 10px; transition: opacity 0.6s ease; }
+
+    #intro { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, rgba(0,0,0,0.25), rgba(0,0,0,0.85)); color: #fff; text-align: center; padding: 24px; transition: opacity 0.8s ease; }
     #intro h1 { font-size: 56px; margin-bottom: 4px; letter-spacing: 1px; }
-    #intro h2 {
-      font-size: 26px; font-weight: 400; margin-bottom: 22px;
-      color: #9ad0ff; letter-spacing: 4px; text-transform: uppercase;
-    }
+    #intro h2 { font-size: 26px; font-weight: 400; margin-bottom: 22px; color: #9ad0ff; letter-spacing: 4px; text-transform: uppercase; }
     #intro p { font-size: 16px; max-width: 480px; line-height: 1.5; margin-bottom: 28px; opacity: 0.9; }
-    #intro button {
-      font-size: 20px; padding: 14px 36px; border-radius: 12px;
-      background: #2563eb; color: #fff; border: none; cursor: pointer;
-      box-shadow: 0 6px 20px rgba(37,99,235,0.4);
-      transition: transform 0.15s, background 0.15s;
-    }
-    #intro button:hover { transform: scale(1.05); background: #1d4ed8; }
+    #intro button { font-size: 20px; padding: 14px 36px; border-radius: 12px; background: #2563eb; color: #fff; border: none; cursor: pointer; box-shadow: 0 6px 20px rgba(37,99,235,0.4); }
     #intro.fade-out { opacity: 0; pointer-events: none; }
 
-    #touch-controls {
-      position: fixed; bottom: 20px; left: 20px; right: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end; z-index: 9999;
-      transition: opacity 0.6s ease;
-    }
+    #touch-controls { position: fixed; bottom: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-end; z-index: 9999; transition: opacity 0.6s ease; }
     .d-pad { display: flex; gap: 10px; }
     .pedals { display: flex; gap: 10px; align-items: flex-end; }
-    #touch-controls button {
-      background: rgba(0, 0, 0, 0.6); color: white;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%; width: 65px; height: 65px;
-      font-size: 22px; font-weight: bold;
-      -webkit-user-select: none; user-select: none;
-      touch-action: manipulation;
-    }
-    #touch-controls button:active {
-      background: rgba(37, 99, 235, 0.8);
-      transform: scale(0.95);
-    }
+    #touch-controls button { background: rgba(0, 0, 0, 0.6); color: white; border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; width: 65px; height: 65px; font-size: 22px; font-weight: bold; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+    #touch-controls button:active { background: rgba(37, 99, 235, 0.8); transform: scale(0.95); }
     #btn-gas { width: 80px; height: 80px; border-radius: 20px; background: rgba(34, 197, 94, 0.6); }
     #btn-brake { width: 75px; height: 75px; border-radius: 20px; background: rgba(239, 68, 68, 0.6); }
     #btn-rev { width: 65px; height: 65px; border-radius: 15px; background: rgba(249, 115, 22, 0.6); font-size: 16px; }
@@ -134,6 +91,7 @@
   <canvas id="game"></canvas>
 
   <div id="topbar">
+    <div class="stat"><span>⏱️</span><b id="timer">150</b></div>
     <div class="stat"><span>📍</span><b id="nextStop">—</b></div>
     <div class="stat"><span>📅</span><b id="day">1</b>/20</div>
     <div class="stat"><span>💰</span><b id="money">200</b></div>
@@ -142,6 +100,7 @@
     <div class="stat"><span>🔧</span><b id="cond">100</b></div>
   </div>
 
+  <div id="combo">🔥 COMBO x2</div>
   <canvas id="minimap" width="180" height="180"></canvas>
 
   <div id="speedo">
@@ -150,15 +109,9 @@
   </div>
 
   <div id="touch-controls">
-    <div class="d-pad">
-      <button id="btn-left">◀</button>
-      <button id="btn-right">▶</button>
-    </div>
+    <div class="d-pad"><button id="btn-left">◀</button><button id="btn-right">▶</button></div>
     <div class="pedals">
-      <button id="btn-rev">Rev</button>
-      <button id="btn-cam">Cam</button>
-      <button id="btn-brake">Brake</button>
-      <button id="btn-gas">GAS</button>
+      <button id="btn-rev">Rev</button><button id="btn-cam">Cam</button><button id="btn-brake">Brake</button><button id="btn-gas">GAS</button>
     </div>
   </div>
 
@@ -167,6 +120,26 @@
     <div class="buttons">
       <button id="promptYes">Yes (+$8)</button>
       <button id="promptNo">No (-1 Rep)</button>
+    </div>
+  </div>
+
+  <div id="shop" class="hidden">
+    <h1 style="margin-bottom: 10px;">🛒 Upgrade Shop</h1>
+    <p style="font-size: 16px; margin-bottom: 20px;">Spend your earnings to make the next shift easier.</p>
+    <div class="shop-item">
+      <div><h3>🔧 Repair Bus</h3><p>Restore condition to 100%</p></div>
+      <button class="shop-btn" id="buy-repair">$50</button>
+    </div>
+    <div class="shop-item">
+      <div><h3>⛽ Refill Tank</h3><p>Restore fuel to 100%</p></div>
+      <button class="shop-btn" id="buy-fuel">$30</button>
+    </div>
+    <div class="shop-item">
+      <div><h3>🚀 Engine Upgrade</h3><p>Increase Top Speed (+20 km/h)</p></div>
+      <button class="shop-btn" id="buy-engine">$100</button>
+    </div>
+    <div class="buttons" style="margin-top: 20px;">
+      <button id="shop-continue" style="background: #22c55e; font-size: 20px; padding: 15px 40px;">Start Next Shift ▶</button>
     </div>
   </div>
 
@@ -179,16 +152,8 @@
   <div id="intro">
     <h1>🚌 Bus Tycoon</h1>
     <h2>City Routes</h2>
-    <p>Drive the double-decker. Manage fuel, repairs &amp; reputation.<br/>Visit every stop to finish a shift.</p>
+    <p>Drive fast, hit all stops before the timer runs out.<br/>Survive 20 shifts to win!</p>
     <button id="startBtn">▶ Start driving</button>
-  </div>
-
-  <div id="controls">
-    WASD / Arrows drive · Space brake · <b>C</b> cockpit view
-  </div>
-
-  <div id="credit">
-    Bus model: “Hong Kong Double Decker Bus” by businessyuen — CC BY 4.0
   </div>
 
   <script type="importmap">
