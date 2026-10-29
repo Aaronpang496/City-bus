@@ -115,7 +115,7 @@ function makeBusStop(group, x, z) {
   const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af })); shelterRoof.position.set(0, 3, -2); g.add(shelterRoof);
   const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })); shelterBack.position.set(0, 1.25, -3.4); g.add(shelterBack);
   const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e })); bench.position.set(0, 0.8, -2.6); g.add(bench);
-  const zone = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
+  const zone = new THREE.Mesh(new THREE.SphereGeometry(30, 8, 8), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
   g.position.set(x, 0, z); group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
@@ -324,20 +324,19 @@ function updateBus(dt) {
   const isGas = keys['w'] || keys['arrowup'], isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
   
-  const accelForce = 15; 
-  const brakeForce = 60; 
-  const drag = 4.5; 
-  const maxReverse = -15;
+  // HEAVY BUS PHYSICS - Slower acceleration, lower top speed
+  const accelForce = 6.5; 
+  const brakeForce = 25; 
+  const drag = 1.5; 
+  const maxReverse = -8;
 
-  // Fuel logic
   if (state.fuel <= 0) {
-    state.speed -= 10 * dt; 
+    state.speed -= 8 * dt; 
     if (state.speed < 0) state.speed = 0;
   } 
-  // Condition logic
   else if (state.cond <= 0) {
     state.speed = 0;
-    endShift(); // Breaks down immediately
+    endShift(); 
     return;
   } 
   else {
@@ -351,15 +350,18 @@ function updateBus(dt) {
     }
   }
 
-  state.speed = Math.max(maxReverse, Math.min(state.maxSpeed, state.speed));
+  // Cap speed to a lower, more realistic city speed
+  const currentMaxSpeed = Math.min(state.maxSpeed, 60); 
+  state.speed = Math.max(maxReverse, Math.min(currentMaxSpeed, state.speed));
 
   if (audioCtx && engineOsc) {
     engineOsc.frequency.setTargetAtTime(50 + Math.abs(state.speed) * 3, audioCtx.currentTime, 0.1);
     engineGain.gain.setTargetAtTime(Math.min(0.1, Math.abs(state.speed) * 0.002), audioCtx.currentTime, 0.1);
   }
 
-  state.steer += (steerInput - state.steer) * Math.min(1, dt * 8);
-  const turnFactor = 1.2 * (state.speed / state.maxSpeed);
+  state.steer += (steerInput - state.steer) * Math.min(1, dt * 6);
+  // Slower turning at low speeds, but allows turning even when slow
+  const turnFactor = (0.5 + 0.8 * (Math.abs(state.speed) / currentMaxSpeed)) * (state.speed >= 0 ? 1 : -1);
   bus.rotation.y += state.steer * turnFactor * dt;
 
   const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt;
@@ -371,7 +373,7 @@ function updateBus(dt) {
   }
 
   if (hit) {
-    if (state.speed > 20) state.shake = 0.5; 
+    if (state.speed > 15) state.shake = 0.5; 
     state.speed = 0; state.cond = Math.max(0, state.cond - 5); state.combo = 1; updateHUD();
   } else { bus.position.x = nextX; bus.position.z = nextZ; }
 
@@ -416,7 +418,6 @@ function updateTrafficLights(dt) {
     else tl.glow.color.set(0x00ff00);
   });
 
-  // RED LIGHT PENALTY
   if (state.lightCooldown > 0) state.lightCooldown -= dt;
   
   if (state.lightPhase === 'red' && Math.abs(state.speed) > 10) {
@@ -427,7 +428,7 @@ function updateTrafficLights(dt) {
           state.rep = Math.max(0, state.rep - 5);
           state.combo = 1;
           state.shake = 0.4;
-          state.lightCooldown = 3; // 3 seconds cooldown
+          state.lightCooldown = 3; 
           updateHUD();
         }
       }
@@ -463,7 +464,9 @@ function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-    if (bus.position.distanceTo(wp) < 20 && Math.abs(state.speed) < 15) {
+    
+    // WIDER RADIUS (30) AND FASTER SPEED ALLOWANCE (35)
+    if (bus.position.distanceTo(wp) < 30 && Math.abs(state.speed) < 35) {
       s.used = true; state.paused = true; s.zone.material.color.set(0x22c55e);
       keys['w'] = false; keys['s'] = false;
       $('promptText').textContent = `🚏 Stop reached! Combo x${state.combo} (+$${8 * state.combo})`;
