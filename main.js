@@ -9,10 +9,10 @@ const state = {
   speed: 0, baseMaxSpeed: 80, maxSpeed: 80,
   steer: 0, paused: true, gameOver: false,
   passengers: 0, cockpit: false,
-  timer: 150,
+  timer: 150, 
   combo: 1,
   shake: 0,
-  shiftActive: false,
+  shiftActive: false, 
   lightTimer: 0,
 };
 
@@ -97,7 +97,7 @@ loader.load('assets/bus.glb', (gltf) => {
   const center = new THREE.Vector3(); box.getCenter(center);
   model.position.x -= center.x; model.position.z -= center.z; model.position.y -= box.min.y;
   const s = 12 / Math.max(size.x, size.z);
-  model.scale.setScalar(s); model.rotation.y = 0;
+  model.scale.setScalar(s); model.rotation.y = 0; 
   model.traverse(n => { if(n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
   bus.add(model);
 }, undefined, () => {
@@ -122,65 +122,37 @@ function makeBusStop(group, x, z) {
   const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af })); shelterRoof.position.set(0, 3, -2); g.add(shelterRoof);
   const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })); shelterBack.position.set(0, 1.25, -3.4); g.add(shelterBack);
   const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e })); bench.position.set(0, 0.8, -2.6); g.add(bench);
-
+  
   const zone = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
   g.position.set(x, 0, z); group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
 
-// --- FIXED: TRAFFIC LIGHT (Emissive spheres + point light) ---
 function makeTrafficLight(group, x, z, isHorizontal) {
   const g = new THREE.Group();
-
-  // Pole
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.15, 0.15, 6, 6),
-    new THREE.MeshStandardMaterial({ color: 0x333333 })
-  );
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 6), new THREE.MeshStandardMaterial({ color: 0x333333 }));
   pole.position.y = 3; g.add(pole);
-
-  // Arm reaching over the road
-  const arm = new THREE.Mesh(
-    new THREE.BoxGeometry(4, 0.2, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x333333 })
-  );
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(4, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x333333 }));
   arm.position.set(2, 6, 0); g.add(arm);
-
-  // Light housing
-  const housing = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 2.4, 1),
-    new THREE.MeshStandardMaterial({ color: 0x111111 })
-  );
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(1, 2.4, 1), new THREE.MeshStandardMaterial({ color: 0x111111 }));
   housing.position.set(3.5, 5, 0); g.add(housing);
 
-  // Lights — BIG glowing spheres
   const makeLight = (color, y, emissiveIntensity) => {
-    const mat = new THREE.MeshStandardMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: emissiveIntensity,
-    });
+    const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: emissiveIntensity });
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), mat);
     light.position.set(3.5, y, 0);
     return light;
   };
-
   const red = makeLight(0xff0000, 5.7, 2);
   const yellow = makeLight(0xffff00, 5, 0);
   const green = makeLight(0x00ff00, 4.3, 0);
-
   g.add(red, yellow, green);
 
-  // Point light that illuminates the road (only one active at a time)
   const glow = new THREE.PointLight(0xff0000, 3, 15);
-  glow.position.set(3.5, 5, 0);
-  g.add(glow);
+  glow.position.set(3.5, 5, 0); g.add(glow);
 
-  // Face the direction
   if (!isHorizontal) g.rotation.y = Math.PI / 2;
-
   g.position.set(x, 0, z); group.add(g);
-
   return { group: g, red, yellow, green, glow, isHorizontal };
 }
 
@@ -188,9 +160,9 @@ function spawnTraffic(group) {
   const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
   const r = 4 * (1 + Math.floor(Math.random() * 2));
   const { z } = tileToWorld(r, 0);
-  car.position.set(HALF - 2, 0.7, z);
+  car.position.set(HALF - 2, 0.7, z); 
   car.userData.speed = 20 + Math.random() * 20;
-  car.userData.direction = -1;
+  car.userData.direction = -1; 
   car.castShadow = true;
   group.add(car); traffic.push(car);
 }
@@ -215,16 +187,11 @@ function generateCity() {
     }
   }
 
-  // FIXED: Only spawn 4 traffic lights at specific intersections, not everywhere
-  const lightSpots = [
-    { r: 4, c: 4 }, { r: 4, c: 8 },
-    { r: 8, c: 4 }, { r: 8, c: 8 },
-  ];
+  const lightSpots = [ { r: 4, c: 4 }, { r: 4, c: 8 }, { r: 8, c: 4 }, { r: 8, c: 8 } ];
 
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const { x, z } = tileToWorld(r, c); const type = map[r][c];
-
       if (type === 0) {
         const road = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), roadMat);
         road.rotation.x = -Math.PI / 2; road.position.set(x, 0.02, z); road.receiveShadow = true; cityGroup.add(road);
@@ -251,7 +218,6 @@ function generateCity() {
     }
   }
 
-  // Place the 4 traffic lights at the chosen intersections
   lightSpots.forEach(({ r, c }) => {
     const { x, z } = tileToWorld(r, c);
     trafficLights.push(makeTrafficLight(cityGroup, x, z, true));
@@ -290,17 +256,15 @@ function generateCity() {
   state.speed = 0; state.timer = 150; state.combo = 1;
 }
 
-// ================= FIXED: START SHIFT =================
+// ================= START SHIFT LOGIC =================
 function startShift() {
-  // Don't allow starting during intro
-  if (intro.active || intro.transitioning) return;
-  if (state.shiftActive) return;
+  if (intro.active || intro.transitioning) return; 
+  if (state.shiftActive) return; 
 
   state.shiftActive = true;
   state.paused = false;
-  document.getElementById('overlay').classList.add('hidden');
-  document.getElementById('overlay').style.pointerEvents = 'none'; // FIX: allow touch through
-  initAudio();
+  $('overlay').classList.add('hidden');
+  initAudio(); 
 }
 
 // ================= INPUT =================
@@ -308,28 +272,52 @@ const keys = {};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); keys[k] = true;
   if (k === 'c') state.cockpit = !state.cockpit;
-  if ((k === 'w' || k === 'arrowup') && !state.shiftActive) startShift();
+  if ((k === 'w' || k === 'arrowup') && !state.shiftActive && !intro.active) startShift();
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 const $ = id => document.getElementById(id);
 
-// FIX: Overlay itself starts the game on click/tap
-const overlayEl = $('overlay');
-overlayEl.addEventListener('click', (e) => {
+$('overlay').addEventListener('click', (e) => {
   e.preventDefault();
   if (!state.shiftActive && !intro.active) startShift();
 });
-overlayEl.addEventListener('touchstart', (e) => {
+$('overlay').addEventListener('touchstart', (e) => {
   if (!state.shiftActive && !intro.active) startShift();
 }, { passive: false });
 
-// Make overlay button also start
 $('overlayBtn').onclick = (e) => {
   e.preventDefault();
-  if (!state.shiftActive) startShift();
-  else { $('overlay').classList.add('hidden'); openShop(); }
+  if (!state.shiftActive && !intro.active) startShift();
+  else if (state.shiftActive) { $('overlay').classList.add('hidden'); openShop(); }
 };
+
+// ================= NEW: MENU LOGIC =================
+$('menu-btn').onclick = (e) => {
+  e.preventDefault();
+  if (state.paused || !state.shiftActive) return;
+  state.paused = true;
+  $('pause-menu').classList.remove('hidden');
+};
+
+$('resume-btn').onclick = (e) => {
+  e.preventDefault();
+  $('pause-menu').classList.add('hidden');
+  state.paused = false;
+};
+
+$('pause-shop-btn').onclick = (e) => {
+  e.preventDefault();
+  $('pause-menu').classList.add('hidden');
+  openShop();
+};
+
+$('restart-btn').onclick = (e) => {
+  e.preventDefault();
+  location.reload();
+};
+
+// ================= END MENU LOGIC =================
 
 canvas.addEventListener('touchstart', (e) => { if (state.cockpit) return; isDragging = true; previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, {passive: false});
 canvas.addEventListener('touchend', () => { isDragging = false; });
@@ -352,7 +340,7 @@ function updateHUD() {
   $('timer').style.color = state.timer < 30 ? '#ef4444' : '#facc15';
   $('speedText').textContent = Math.round(state.speed) + ' km/h';
   $('speedBar').style.width = Math.abs(state.speed / state.maxSpeed * 100) + '%';
-
+  
   const comboEl = $('combo');
   if (state.combo > 1) { comboEl.textContent = `🔥 COMBO x${state.combo}`; comboEl.style.opacity = 1; }
   else { comboEl.style.opacity = 0; }
@@ -365,7 +353,7 @@ function updateHUD() {
 function updateBus(dt) {
   const isGas = keys['w'] || keys['arrowup'], isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
-
+  
   const accelForce = 45, brakeForce = 80, drag = 2.5;
 
   if (isGas) state.speed += accelForce * dt;
@@ -384,16 +372,16 @@ function updateBus(dt) {
 
   const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt;
   const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt;
-
+  
   let hit = false;
   for (let obj of collisionObjects) {
     if (Math.hypot(nextX - obj.pos.x, nextZ - obj.pos.z) < obj.radius + 2.5) { hit = true; break; }
   }
 
   if (hit) {
-    if (state.speed > 20) state.shake = 0.5;
+    if (state.speed > 20) state.shake = 0.5; 
     state.speed = 0; state.cond = Math.max(0, state.cond - 5);
-    state.combo = 1;
+    state.combo = 1; 
     updateHUD();
   } else {
     bus.position.x = nextX; bus.position.z = nextZ;
@@ -413,7 +401,7 @@ function updateTraffic(dt) {
     car.position.x += car.userData.speed * dt * car.userData.direction;
     if (car.position.x < -HALF) car.position.x = HALF;
     if (car.position.x > HALF) car.position.x = -HALF;
-
+    
     if (car.position.distanceTo(bus.position) < 4) {
       if (Math.abs(state.speed) > 10) state.shake = 0.6;
       state.speed = 0; state.cond = Math.max(0, state.cond - 15); state.rep = Math.max(0, state.rep - 5);
@@ -424,11 +412,8 @@ function updateTraffic(dt) {
   });
 }
 
-// --- FIXED: TRAFFIC LIGHTS ACTUALLY GLOW ---
 function updateTrafficLights(dt) {
   state.lightTimer += dt;
-
-  // Cycle: Green (4s) -> Yellow (1s) -> Red (4s) -> Yellow (1s)
   const cycle = state.lightTimer % 10;
   let phase;
   if (cycle < 4) phase = 'green';
@@ -438,20 +423,16 @@ function updateTrafficLights(dt) {
 
   trafficLights.forEach(tl => {
     const isH = tl.isHorizontal;
-    // Horizontal and vertical alternate
     let effectivePhase = phase;
     if (!isH) {
-      // Vertical is opposite of horizontal
       if (phase === 'green') effectivePhase = 'red';
       else if (phase === 'red') effectivePhase = 'green';
     }
 
-    // Update emissive intensity
     tl.red.material.emissiveIntensity = effectivePhase === 'red' ? 2.5 : 0;
     tl.yellow.material.emissiveIntensity = effectivePhase === 'yellow' ? 2.5 : 0;
     tl.green.material.emissiveIntensity = effectivePhase === 'green' ? 2.5 : 0;
 
-    // Update point light color
     if (effectivePhase === 'red') tl.glow.color.set(0xff0000);
     else if (effectivePhase === 'yellow') tl.glow.color.set(0xffff00);
     else tl.glow.color.set(0x00ff00);
@@ -461,12 +442,12 @@ function updateTrafficLights(dt) {
 function updatePeds(dt) {
   peds.forEach(p => {
     p.position.x += p.userData.speed * dt * p.userData.dir;
-    if (Math.abs(p.position.x - (-HALF + TILE/2)) > TILE) p.userData.dir *= -1;
-
+    if (Math.abs(p.position.x - (-HALF + TILE/2)) > TILE) p.userData.dir *= -1; 
+    
     if (p.position.distanceTo(bus.position) < 3) {
-      state.rep = Math.max(0, state.rep - 20);
+      state.rep = Math.max(0, state.rep - 20); 
       state.speed = 0; state.shake = 0.8; state.combo = 1;
-      p.position.set(0, -10, 0);
+      p.position.set(0, -10, 0); 
       updateHUD();
     }
   });
@@ -477,8 +458,8 @@ promptYesBtn.onclick = (e) => {
   e.preventDefault();
   const earn = 8 * state.combo;
   state.money += earn; state.rep = Math.min(100, state.rep + 2); state.passengers++;
-  state.timer += 10;
-  state.combo = Math.min(5, state.combo + 1);
+  state.timer += 10; 
+  state.combo = Math.min(5, state.combo + 1); 
   $('prompt').classList.add('hidden'); state.paused = false; updateHUD();
 };
 $('promptNo').onclick = (e) => {
@@ -490,7 +471,7 @@ function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-
+    
     if (bus.position.distanceTo(wp) < 20 && Math.abs(state.speed) < 15) {
       s.used = true; state.paused = true; s.zone.material.color.set(0x22c55e);
       keys['w'] = false; keys['s'] = false;
@@ -516,7 +497,14 @@ function updateCamera(dt) {
     const from = new THREE.Vector3(0, 170, 220);
     camera.position.lerpVectors(from, chase, e); camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
     camera.fov = 60 + 15 * (1 - e); camera.updateProjectionMatrix();
-    if (intro.transition >= 1) { intro.transitioning = false; intro.active = false; camInitialised = false; state.paused = true; }
+    
+    if (intro.transition >= 1) { 
+      intro.transitioning = false; 
+      intro.active = false; 
+      camInitialised = false; 
+      state.paused = true; 
+      showOverlayPrompt(); 
+    }
     return;
   }
 
@@ -527,7 +515,7 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    const local = new THREE.Vector3(0, 2.5, 6.5);
+    const local = new THREE.Vector3(0, 2.5, 6.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world); camera.position.x += shakeX; camera.position.y += shakeY;
     const look = new THREE.Vector3(0, 2.0, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
@@ -538,12 +526,19 @@ function updateCamera(dt) {
     offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
     offset.y += camOffset.y * 10;
     const target = bus.position.clone().add(offset);
-    if (!camInitialised) { camera.position.copy(target); camInitialised = true; }
+    if (!camInitialised) { camera.position.copy(target); camInitialised = true; } 
     else { camera.position.lerp(target, Math.min(1, dt * 4)); }
     camera.position.x += shakeX; camera.position.y += shakeY;
     camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z); camera.fov = 60;
   }
   camera.updateProjectionMatrix();
+}
+
+function showOverlayPrompt() {
+  $('overlay').classList.remove('hidden');
+  $('overlayTitle').textContent = `📅 Day ${state.day}`;
+  $('overlayText').textContent = "Tap anywhere to start the timer and begin driving!";
+  $('overlayBtn').style.display = 'none';
 }
 
 // ================= MINIMAP =================
@@ -593,13 +588,7 @@ $('shop-continue').onclick = () => {
   }
   state.money -= 20; state.rep = Math.max(0, state.rep - 1);
   generateCity(); updateHUD();
-
-  // Show the overlay to start next shift
-  $('overlay').classList.remove('hidden');
-  $('overlay').style.pointerEvents = 'auto';
-  $('overlayTitle').textContent = `📅 Day ${state.day}`;
-  $('overlayText').textContent = "Tap anywhere to start the timer and begin driving!";
-  $('overlayBtn').style.display = 'none';
+  showOverlayPrompt();
 };
 
 function endShift() {
@@ -639,7 +628,7 @@ function animate() {
     }
     if (stops.every(s => s.used)) endShift();
   }
-
+  
   updateCamera(dt);
   drawMinimap();
   renderer.render(scene, camera);
@@ -650,17 +639,13 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// Touch controls — FIX: don't block when paused, always allow gas to start
 function bindTouch(id, key) {
   const btn = document.getElementById(id); if (!btn) return;
-  const press = (e) => {
-    e.preventDefault();
-    // Gas always starts shift, even when paused
-    if (key === 'w' && !state.shiftActive) {
-      startShift();
-    }
-    if (state.paused) return;
-    keys[key] = true;
+  const press = (e) => { 
+    e.preventDefault(); 
+    if (key === 'w' && !state.shiftActive && !intro.active) startShift();
+    if (state.paused) return; 
+    keys[key] = true; 
   };
   const release = (e) => { e.preventDefault(); keys[key] = false; };
   btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release);
@@ -674,7 +659,7 @@ document.getElementById('btn-cam').addEventListener('click', (e) => { e.preventD
 const startBtn = document.getElementById('startBtn');
 startBtn.addEventListener('click', (e) => {
   e.preventDefault();
-  initAudio();
+  initAudio(); 
   document.getElementById('intro').classList.add('fade-out');
   document.body.classList.remove('intro');
   setTimeout(() => { document.getElementById('intro').style.display = 'none'; }, 800);
@@ -684,14 +669,4 @@ startBtn.addEventListener('click', (e) => {
 // INITIAL SETUP
 generateCity();
 updateHUD();
-
-setTimeout(() => {
-  if (!intro.active) return;
-  $('overlay').classList.remove('hidden');
-  $('overlay').style.pointerEvents = 'auto';
-  $('overlayTitle').textContent = `📅 Day 1`;
-  $('overlayText').textContent = "Tap anywhere to start the timer and begin driving!";
-  $('overlayBtn').style.display = 'none';
-}, 4600);
-
 animate();
