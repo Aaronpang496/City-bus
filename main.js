@@ -9,10 +9,10 @@ const state = {
   speed: 0, baseMaxSpeed: 80, maxSpeed: 80,
   steer: 0, paused: true, gameOver: false,
   passengers: 0, cockpit: false,
-  timer: 150, // 2.5 minutes
+  timer: 150, 
   combo: 1,
   shake: 0,
-  shiftActive: false, // NEW: Tracks if the timer should be running
+  shiftActive: false, // Timer doesn't run until this is true
 };
 
 const camOffset = { x: 0, y: 0 };
@@ -121,8 +121,10 @@ function makeBusStop(group, x, z) {
   const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af })); shelterRoof.position.set(0, 3, -2); g.add(shelterRoof);
   const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })); shelterBack.position.set(0, 1.25, -3.4); g.add(shelterBack);
   const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e })); bench.position.set(0, 0.8, -2.6); g.add(bench);
-  // Zone is now a large invisible sphere for 360 detection
+  
+  // 360 Degree Zone
   const zone = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
+  
   g.position.set(x, 0, z); group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
@@ -218,11 +220,27 @@ function generateCity() {
   state.speed = 0; state.timer = 150; state.combo = 1;
 }
 
+// ================= START SHIFT LOGIC =================
+function startShift() {
+  if (state.shiftActive) return; // Already started
+  state.shiftActive = true;
+  state.paused = false;
+  // Hide any lingering overlays
+  document.getElementById('overlay').classList.add('hidden');
+  // Ensure audio is running (in case they clicked Gas)
+  initAudio();
+}
+
 // ================= INPUT =================
 const keys = {};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); keys[k] = true;
   if (k === 'c') state.cockpit = !state.cockpit;
+  
+  // Start timer on first gas press
+  if (k === 'w' || k === 'arrowup') {
+    startShift();
+  }
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
@@ -354,8 +372,7 @@ function checkStops() {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
     
-    // 360-degree detection: Check distance to the bus itself, not the stop center
-    // Bus is roughly 12 units long, so a radius of 20 is very forgiving
+    // 360-degree detection
     if (bus.position.distanceTo(wp) < 20 && Math.abs(state.speed) < 15) {
       s.used = true; state.paused = true; s.zone.material.color.set(0x22c55e);
       keys['w'] = false; keys['s'] = false;
@@ -456,16 +473,13 @@ $('shop-continue').onclick = () => {
   }
   state.money -= 20; state.rep = Math.max(0, state.rep - 1);
   generateCity(); updateHUD();
-  // NEW: Show the Start Shift button after generating
+  
+  // Setup the "Press Gas to Start" overlay
   $('overlay').classList.remove('hidden');
   $('overlayTitle').textContent = `📅 Day ${state.day}`;
-  $('overlayText').textContent = "Click below to start the timer and begin driving!";
-  $('overlayBtn').textContent = "▶ Start Shift";
-  $('overlayBtn').onclick = () => {
-    $('overlay').classList.add('hidden');
-    state.paused = false;
-    state.shiftActive = true;
-  };
+  $('overlayText').textContent = "Get ready! Tap the GAS button (or press W) to start the timer.";
+  // Hide the overlay button, as they will start it using the gas controls
+  $('overlayBtn').style.display = 'none'; 
 };
 
 function endShift() {
@@ -476,6 +490,8 @@ function endShift() {
     $('overlay').classList.remove('hidden');
     $('overlayTitle').textContent = "🏆 You survived 20 shifts!";
     $('overlayText').textContent = `Final: 💰 $${Math.round(state.money)} · ⭐ ${Math.round(state.rep)}`;
+    $('overlayBtn').textContent = "Play Again";
+    $('overlayBtn').style.display = 'block';
     $('overlayBtn').onclick = () => location.reload();
     return;
   }
@@ -483,6 +499,7 @@ function endShift() {
   $('overlayTitle').textContent = `📅 Shift ${state.day} Complete!`;
   $('overlayText').textContent = "Great job! Time to upgrade your bus.";
   $('overlayBtn').textContent = "Open Shop 🛒";
+  $('overlayBtn').style.display = 'block';
   $('overlayBtn').onclick = () => { $('overlay').classList.add('hidden'); openShop(); };
 }
 
@@ -491,7 +508,6 @@ function animate() {
   requestAnimationFrame(animate);
   const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now;
 
-  // Only update game logic if shift is active and not paused
   if (state.shiftActive && !state.paused && !state.gameOver) {
     updateBus(dt); updateTraffic(dt); updatePeds(dt); checkStops();
     updateHUD();
@@ -504,7 +520,6 @@ function animate() {
     if (stops.every(s => s.used)) endShift();
   }
   
-  // Always update camera and minimap so you can see the world even while paused
   updateCamera(dt);
   drawMinimap();
   renderer.render(scene, camera);
@@ -517,7 +532,12 @@ addEventListener('resize', () => {
 
 function bindTouch(id, key) {
   const btn = document.getElementById(id); if (!btn) return;
-  const press = (e) => { e.preventDefault(); if (state.paused) return; keys[key] = true; };
+  const press = (e) => { 
+    e.preventDefault(); 
+    if (state.paused && !state.shiftActive) startShift(); // START GAME ON GAS TOUCH
+    if (state.paused) return; 
+    keys[key] = true; 
+  };
   const release = (e) => { e.preventDefault(); keys[key] = false; };
   btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release);
   btn.addEventListener('pointerleave', release);
@@ -540,4 +560,11 @@ startBtn.addEventListener('click', (e) => {
 // INITIAL SETUP
 generateCity();
 updateHUD();
+
+// Show the overlay at the very beginning too!
+$('overlay').classList.remove('hidden');
+$('overlayTitle').textContent = `📅 Day 1`;
+$('overlayText').textContent = "Tap the GAS button (or press W) to start the timer.";
+$('overlayBtn').style.display = 'none';
+
 animate();
