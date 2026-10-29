@@ -12,6 +12,7 @@ const state = {
   timer: 150, // 2.5 minutes
   combo: 1,
   shake: 0,
+  shiftActive: false, // NEW: Tracks if the timer should be running
 };
 
 const camOffset = { x: 0, y: 0 };
@@ -42,6 +43,7 @@ scene.add(sun);
 // Audio Context (Engine Sound)
 let audioCtx, engineOsc, engineGain;
 function initAudio() {
+  if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   engineOsc = audioCtx.createOscillator();
   engineGain = audioCtx.createGain();
@@ -66,7 +68,6 @@ const pedMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
 
 let cityGroup = new THREE.Group(); scene.add(cityGroup);
 let map = [], collisionObjects = [], stops = [], traffic = [], peds = [];
-let streetLights = [];
 
 const windowTex = (() => {
   const c = document.createElement('canvas'); c.width = 64; c.height = 128;
@@ -120,7 +121,8 @@ function makeBusStop(group, x, z) {
   const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af })); shelterRoof.position.set(0, 3, -2); g.add(shelterRoof);
   const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })); shelterBack.position.set(0, 1.25, -3.4); g.add(shelterBack);
   const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e })); bench.position.set(0, 0.8, -2.6); g.add(bench);
-  const zone = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
+  // Zone is now a large invisible sphere for 360 detection
+  const zone = new THREE.Mesh(new THREE.SphereGeometry(20, 8, 8), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
   g.position.set(x, 0, z); group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
@@ -129,9 +131,9 @@ function spawnTraffic(group) {
   const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
   const r = 4 * (1 + Math.floor(Math.random() * 2));
   const { z } = tileToWorld(r, 0);
-  car.position.set(HALF - 2, 0.7, z); // Start on the RIGHT side
+  car.position.set(HALF - 2, 0.7, z); 
   car.userData.speed = 20 + Math.random() * 20;
-  car.userData.direction = -1; // Drive TOWARDS player
+  car.userData.direction = -1; 
   car.castShadow = true;
   group.add(car); traffic.push(car);
 }
@@ -145,9 +147,8 @@ function spawnPedestrian(group, x, z) {
 }
 
 function generateCity() {
-  cityGroup.clear(); map = []; collisionObjects = []; stops = []; traffic = []; peds = []; streetLights = [];
+  cityGroup.clear(); map = []; collisionObjects = []; stops = []; traffic = []; peds = [];
   
-  // 1. Generate Data
   for (let r = 0; r < GRID; r++) {
     map[r] = [];
     for (let c = 0; c < GRID; c++) {
@@ -156,7 +157,6 @@ function generateCity() {
     }
   }
 
-  // 2. Build 3D World
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const { x, z } = tileToWorld(r, c); const type = map[r][c];
@@ -168,7 +168,6 @@ function generateCity() {
           const dash = new THREE.Mesh(new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4), lineMat);
           dash.rotation.x = -Math.PI / 2; dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i)); cityGroup.add(dash);
         }
-        // Spawn Pedestrians randomly on roads
         if (Math.random() < 0.1) spawnPedestrian(cityGroup, x, z);
       } else if (type === 1) {
         const n = 1 + Math.floor(Math.random() * 3);
@@ -187,7 +186,6 @@ function generateCity() {
     }
   }
 
-  // 3. Stops & Traffic
   const stopCandidates = [];
   for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
   let si = 0;
@@ -197,12 +195,10 @@ function generateCity() {
   }
   for (let k = 0; k < 12; k++) spawnTraffic(cityGroup);
 
-  // 4. Night Mode Logic (20% chance)
   if (Math.random() < 0.2) {
     scene.background = new THREE.Color(0x050510);
     scene.fog = new THREE.Fog(0x050510, 50, 200);
     hemiLight.intensity = 0.2; sun.intensity = 0.1;
-    // Add street lights to road corners
     for (let r = 0; r < GRID; r+=4) {
       for (let c = 0; c < GRID; c+=4) {
         const { x, z } = tileToWorld(r, c);
@@ -218,7 +214,6 @@ function generateCity() {
     hemiLight.intensity = 1.1; sun.intensity = 1.3;
   }
 
-  // 5. Reset Bus & State
   bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2); bus.rotation.y = Math.PI / 2;
   state.speed = 0; state.timer = 150; state.combo = 1;
 }
@@ -275,7 +270,6 @@ function updateBus(dt) {
   else { if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt); if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt); }
   state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
 
-  // Engine Sound
   if (audioCtx && engineOsc) {
     engineOsc.frequency.setTargetAtTime(50 + Math.abs(state.speed) * 3, audioCtx.currentTime, 0.1);
     engineGain.gain.setTargetAtTime(Math.min(0.1, Math.abs(state.speed) * 0.002), audioCtx.currentTime, 0.1);
@@ -294,9 +288,9 @@ function updateBus(dt) {
   }
 
   if (hit) {
-    if (state.speed > 20) state.shake = 0.5; // Screen shake on hard hit
+    if (state.speed > 20) state.shake = 0.5; 
     state.speed = 0; state.cond = Math.max(0, state.cond - 5);
-    state.combo = 1; // Lose combo on crash
+    state.combo = 1; 
     updateHUD();
   } else {
     bus.position.x = nextX; bus.position.z = nextZ;
@@ -330,12 +324,12 @@ function updateTraffic(dt) {
 function updatePeds(dt) {
   peds.forEach(p => {
     p.position.x += p.userData.speed * dt * p.userData.dir;
-    if (Math.abs(p.position.x - (-HALF + TILE/2)) > TILE) p.userData.dir *= -1; // turn around at crosswalk bounds
+    if (Math.abs(p.position.x - (-HALF + TILE/2)) > TILE) p.userData.dir *= -1; 
     
     if (p.position.distanceTo(bus.position) < 3) {
-      state.rep = Math.max(0, state.rep - 20); // Massive penalty
+      state.rep = Math.max(0, state.rep - 20); 
       state.speed = 0; state.shake = 0.8; state.combo = 1;
-      p.position.set(0, -10, 0); // Hide ped (knocked out)
+      p.position.set(0, -10, 0); 
       updateHUD();
     }
   });
@@ -346,8 +340,8 @@ promptYesBtn.onclick = (e) => {
   e.preventDefault();
   const earn = 8 * state.combo;
   state.money += earn; state.rep = Math.min(100, state.rep + 2); state.passengers++;
-  state.timer += 10; // Time bonus!
-  state.combo = Math.min(5, state.combo + 1); // Increase combo (max 5x)
+  state.timer += 10; 
+  state.combo = Math.min(5, state.combo + 1); 
   $('prompt').classList.add('hidden'); state.paused = false; updateHUD();
 };
 $('promptNo').onclick = (e) => {
@@ -359,7 +353,10 @@ function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-    if (wp.distanceTo(bus.position) < 16 && Math.abs(state.speed) < 8) {
+    
+    // 360-degree detection: Check distance to the bus itself, not the stop center
+    // Bus is roughly 12 units long, so a radius of 20 is very forgiving
+    if (bus.position.distanceTo(wp) < 20 && Math.abs(state.speed) < 15) {
       s.used = true; state.paused = true; s.zone.material.color.set(0x22c55e);
       keys['w'] = false; keys['s'] = false;
       $('promptText').textContent = `🚏 Stop reached! Combo x${state.combo} (+$${8 * state.combo})`;
@@ -388,7 +385,6 @@ function updateCamera(dt) {
     return;
   }
 
-  // Screen Shake
   let shakeX = 0, shakeY = 0;
   if (state.shake > 0) {
     shakeX = (Math.random() - 0.5) * state.shake; shakeY = (Math.random() - 0.5) * state.shake;
@@ -437,7 +433,7 @@ function drawMinimap() {
 // ================= GAME LOOP & SHOP =================
 const shopEl = $('shop');
 function openShop() {
-  state.paused = true;
+  state.paused = true; state.shiftActive = false;
   shopEl.classList.remove('hidden');
   $('buy-repair').disabled = state.money < 50 || state.cond >= 100;
   $('buy-fuel').disabled = state.money < 30 || state.fuel >= 100;
@@ -458,14 +454,23 @@ $('shop-continue').onclick = () => {
     $('overlayBtn').onclick = () => location.reload();
     return;
   }
-  // Reset daily costs
   state.money -= 20; state.rep = Math.max(0, state.rep - 1);
   generateCity(); updateHUD();
-  state.paused = false;
+  // NEW: Show the Start Shift button after generating
+  $('overlay').classList.remove('hidden');
+  $('overlayTitle').textContent = `📅 Day ${state.day}`;
+  $('overlayText').textContent = "Click below to start the timer and begin driving!";
+  $('overlayBtn').textContent = "▶ Start Shift";
+  $('overlayBtn').onclick = () => {
+    $('overlay').classList.add('hidden');
+    state.paused = false;
+    state.shiftActive = true;
+  };
 };
 
 function endShift() {
   state.paused = true;
+  state.shiftActive = false;
   if (state.day >= state.maxDays) {
     state.day++;
     $('overlay').classList.remove('hidden');
@@ -486,7 +491,8 @@ function animate() {
   requestAnimationFrame(animate);
   const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now;
 
-  if (!state.paused && !state.gameOver) {
+  // Only update game logic if shift is active and not paused
+  if (state.shiftActive && !state.paused && !state.gameOver) {
     updateBus(dt); updateTraffic(dt); updatePeds(dt); checkStops();
     updateHUD();
 
@@ -495,9 +501,10 @@ function animate() {
     if (state.timer <= 0) {
       state.timer = 0; updateHUD(); endShift();
     }
-    // Check if all stops hit
     if (stops.every(s => s.used)) endShift();
   }
+  
+  // Always update camera and minimap so you can see the world even while paused
   updateCamera(dt);
   drawMinimap();
   renderer.render(scene, camera);
@@ -508,7 +515,6 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-// Bind Touch Controls
 function bindTouch(id, key) {
   const btn = document.getElementById(id); if (!btn) return;
   const press = (e) => { e.preventDefault(); if (state.paused) return; keys[key] = true; };
@@ -524,7 +530,7 @@ document.getElementById('btn-cam').addEventListener('click', (e) => { e.preventD
 const startBtn = document.getElementById('startBtn');
 startBtn.addEventListener('click', (e) => {
   e.preventDefault();
-  initAudio(); // Start audio on user gesture
+  initAudio(); 
   document.getElementById('intro').classList.add('fade-out');
   document.body.classList.remove('intro');
   setTimeout(() => { document.getElementById('intro').style.display = 'none'; }, 800);
