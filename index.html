@@ -52,7 +52,6 @@
 
     body.intro #topbar, body.intro #minimap, body.intro #speedo, body.intro #controls, body.intro #credit, body.intro #touch-controls, body.intro #menu-btn { opacity: 0; pointer-events: none; }
 
-    /* THE FIX: pointer-events: none makes the overlay invisible to clicks! */
     #overlay {
       position: fixed; inset: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; background: rgba(0,0,0,0.7); color: #fff; text-align: center;
@@ -101,7 +100,6 @@
     #touch-controls button:active { background: rgba(37, 99, 235, 0.8); transform: scale(0.95); }
     #btn-gas { width: 80px; height: 80px; border-radius: 20px; background: rgba(34, 197, 94, 0.6); }
     #btn-brake { width: 75px; height: 75px; border-radius: 20px; background: rgba(239, 68, 68, 0.6); }
-    #btn-rev { width: 65px; height: 65px; border-radius: 15px; background: rgba(249, 115, 22, 0.6); font-size: 16px; }
     #btn-cam { width: 65px; height: 65px; border-radius: 15px; background: rgba(255, 255, 255, 0.2); font-size: 16px; }
   </style>
 </head>
@@ -132,7 +130,9 @@
   <div id="touch-controls">
     <div class="d-pad"><button id="btn-left">◀</button><button id="btn-right">▶</button></div>
     <div class="pedals">
-      <button id="btn-rev">Rev</button><button id="btn-cam">Cam</button><button id="btn-brake">Brake</button><button id="btn-gas">GAS</button>
+      <button id="btn-cam">Cam</button>
+      <button id="btn-brake">Brake</button>
+      <button id="btn-gas">GAS</button>
     </div>
   </div>
 
