@@ -2,80 +2,79 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
+// ================= STATE =================
 const state = {
   money: 200, rep: 50, fuel: 100, cond: 100,
   day: 1, maxDays: 20,
-  speed: 0, maxSpeed: 80,
-  steer: 0,
-  paused: true,           
-  gameOver: false,
-  passengers: 0,
-  cockpit: false,
+  speed: 0, baseMaxSpeed: 80, maxSpeed: 80,
+  steer: 0, paused: true, gameOver: false,
+  passengers: 0, cockpit: false,
+  timer: 150, // 2.5 minutes
+  combo: 1,
+  shake: 0,
 };
 
 const camOffset = { x: 0, y: 0 };
-let isDragging = false;
-let previousMousePosition = { x: 0, y: 0 };
+let isDragging = false, previousMousePosition = { x: 0, y: 0 };
+const intro = { active: true, startTime: performance.now(), duration: 4500, transition: 0, transitioning: false };
 
-const intro = {
-  active: true,
-  startTime: performance.now(),
-  duration: 4500,
-  transition: 0,
-  transitioning: false,
-};
-
+// ================= THREE.JS SETUP =================
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
 scene.fog = new THREE.Fog(0x87ceeb, 120, 320);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 600);
-
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x556655, 1.1));
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x556655, 1.1);
+scene.add(hemiLight);
 const sun = new THREE.DirectionalLight(0xffffff, 1.3);
 sun.position.set(60, 100, 40);
 scene.add(sun);
 
-const GRID = 14;
-const TILE = 30;
-const HALF = (GRID * TILE) / 2;
+// Audio Context (Engine Sound)
+let audioCtx, engineOsc, engineGain;
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  engineOsc = audioCtx.createOscillator();
+  engineGain = audioCtx.createGain();
+  engineOsc.type = 'sawtooth';
+  engineOsc.frequency.value = 50;
+  engineGain.gain.value = 0;
+  engineOsc.connect(engineGain);
+  engineGain.connect(audioCtx.destination);
+  engineOsc.start();
+}
 
-// Materials reused across maps to save memory
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(GRID * TILE + 200, GRID * TILE + 200),
-  new THREE.MeshStandardMaterial({ color: 0x3a7d44 })
-);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+// ================= CITY GENERATION =================
+const GRID = 14, TILE = 30, HALF = (GRID * TILE) / 2;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(GRID * TILE + 200, GRID * TILE + 200), new THREE.MeshStandardMaterial({ color: 0x3a7d44 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
 const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
 const lineMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
 const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
 const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x2f7d32 });
+const pedMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+
+let cityGroup = new THREE.Group(); scene.add(cityGroup);
+let map = [], collisionObjects = [], stops = [], traffic = [], peds = [];
+let streetLights = [];
 
 const windowTex = (() => {
-  const c = document.createElement('canvas');
-  c.width = 64; c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#222';
-  ctx.fillRect(0, 0, 64, 128);
-  for (let y = 8; y < 120; y += 16) {
-    for (let x = 6; x < 60; x += 14) {
-      ctx.fillStyle = Math.random() < 0.5 ? '#ffe9a8' : '#5aa0d8';
-      ctx.fillRect(x, y, 8, 10);
-    }
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#222'; ctx.fillRect(0, 0, 64, 128);
+  for (let y = 8; y < 120; y += 16) for (let x = 6; x < 60; x += 14) {
+    ctx.fillStyle = Math.random() < 0.5 ? '#ffe9a8' : '#5aa0d8'; ctx.fillRect(x, y, 8, 10);
   }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 })();
 
 const buildingMatCache = {};
@@ -83,107 +82,72 @@ function getBuildingMat(hue) {
   const key = Math.round(hue * 10);
   if (buildingMatCache[key]) return buildingMatCache[key];
   const m = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(hue, 0.35, 0.55) });
-  buildingMatCache[key] = m;
-  return m;
+  buildingMatCache[key] = m; return m;
 }
 
 // ================= BUS =================
-const bus = new THREE.Group();
-scene.add(bus);
-
+const bus = new THREE.Group(); scene.add(bus);
 const loader = new GLTFLoader();
 loader.load('assets/bus.glb', (gltf) => {
   const model = gltf.scene;
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3(); box.getSize(size);
   const center = new THREE.Vector3(); box.getCenter(center);
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= box.min.y;
-  const targetLength = 12;
-  const s = targetLength / Math.max(size.x, size.z);
-  model.scale.setScalar(s);
-  model.rotation.y = 0; 
+  model.position.x -= center.x; model.position.z -= center.z; model.position.y -= box.min.y;
+  const s = 12 / Math.max(size.x, size.z);
+  model.scale.setScalar(s); model.rotation.y = 0; 
+  model.traverse(n => { if(n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
   bus.add(model);
-}, undefined, (e) => {
+}, undefined, () => {
   const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 6), new THREE.MeshStandardMaterial({ color: 0xf2c94c }));
-  body.position.y = 1.4;
-  bus.add(body);
+  body.position.y = 1.4; body.castShadow = true; bus.add(body);
 });
 
-// ================= CITY GENERATION =================
-let cityGroup = new THREE.Group();
-scene.add(cityGroup);
-
-let map = [];
-let collisionObjects = [];
-let stops = [];
-let traffic = [];
-const trafficMats = [];
-for (let k = 0; k < 6; k++) {
-  trafficMats.push(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
-}
-
-function tileToWorld(r, c) {
-  return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
-}
+function tileToWorld(r, c) { return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 }; }
 
 function addTree(group, x, z) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6), treeTrunkMat);
-  trunk.position.y = 1.5;
-  g.add(trunk);
-  const leaves = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), treeLeafMat);
-  leaves.position.y = 4.2;
-  g.add(leaves);
-  g.position.set(x, 0, z);
-  group.add(g);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6), treeTrunkMat); trunk.position.y = 1.5; g.add(trunk);
+  const leaves = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), treeLeafMat); leaves.position.y = 4.2; g.add(leaves);
+  g.position.set(x, 0, z); group.add(g);
   collisionObjects.push({ pos: new THREE.Vector3(x, 0, z), radius: 3 });
 }
 
 function makeBusStop(group, x, z) {
   const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }));
-  pole.position.y = 2;
-  g.add(pole);
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x2563eb }));
-  sign.position.set(0, 4.2, 0);
-  g.add(sign);
-  const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af }));
-  shelterRoof.position.set(0, 3, -2);
-  g.add(shelterRoof);
-  const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 }));
-  shelterBack.position.set(0, 1.25, -3.4);
-  g.add(shelterBack);
-  const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e }));
-  bench.position.set(0, 0.8, -2.6);
-  g.add(bench);
-  const zone = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 8), new THREE.MeshBasicMaterial({ visible: false }));
-  g.add(zone);
-  g.position.set(x, 0, z);
-  group.add(g);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 8), new THREE.MeshStandardMaterial({ color: 0x999999 })); pole.position.y = 2; g.add(pole);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x2563eb })); sign.position.set(0, 4.2, 0); g.add(sign);
+  const shelterRoof = new THREE.Mesh(new THREE.BoxGeometry(6, 0.2, 3), new THREE.MeshStandardMaterial({ color: 0x1e40af })); shelterRoof.position.set(0, 3, -2); g.add(shelterRoof);
+  const shelterBack = new THREE.Mesh(new THREE.BoxGeometry(6, 2.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.6 })); shelterBack.position.set(0, 1.25, -3.4); g.add(shelterBack);
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e })); bench.position.set(0, 0.8, -2.6); g.add(bench);
+  const zone = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshBasicMaterial({ visible: false })); g.add(zone);
+  g.position.set(x, 0, z); group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
 
 function spawnTraffic(group) {
-  const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), trafficMats[Math.floor(Math.random() * trafficMats.length)]);
+  const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
   const r = 4 * (1 + Math.floor(Math.random() * 2));
   const { z } = tileToWorld(r, 0);
-  car.position.set(-HALF + 2, 0.7, z);
-  car.userData.speed = 15 + Math.random() * 15;
-  group.add(car);
-  traffic.push(car);
+  car.position.set(HALF - 2, 0.7, z); // Start on the RIGHT side
+  car.userData.speed = 20 + Math.random() * 20;
+  car.userData.direction = -1; // Drive TOWARDS player
+  car.castShadow = true;
+  group.add(car); traffic.push(car);
+}
+
+function spawnPedestrian(group, x, z) {
+  const ped = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.6, 0.6), pedMat);
+  ped.position.set(x, 0.8, z);
+  ped.userData.speed = 2 + Math.random() * 2;
+  ped.userData.dir = Math.random() > 0.5 ? 1 : -1;
+  group.add(ped); peds.push(ped);
 }
 
 function generateCity() {
-  // 1. Clear old world
-  cityGroup.clear();
-  map = [];
-  collisionObjects = [];
-  stops = [];
-  traffic = [];
-
-  // 2. Generate new map data
+  cityGroup.clear(); map = []; collisionObjects = []; stops = []; traffic = []; peds = []; streetLights = [];
+  
+  // 1. Generate Data
   for (let r = 0; r < GRID; r++) {
     map[r] = [];
     for (let c = 0; c < GRID; c++) {
@@ -192,95 +156,88 @@ function generateCity() {
     }
   }
 
-  // 3. Build 3D objects
+  // 2. Build 3D World
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
-      const { x, z } = tileToWorld(r, c);
-      const type = map[r][c];
-
+      const { x, z } = tileToWorld(r, c); const type = map[r][c];
       if (type === 0) {
         const road = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), roadMat);
-        road.rotation.x = -Math.PI / 2;
-        road.position.set(x, 0.02, z);
-        cityGroup.add(road);
-
+        road.rotation.x = -Math.PI / 2; road.position.set(x, 0.02, z); road.receiveShadow = true; cityGroup.add(road);
         const horizontal = (r % 4 === 0);
         for (let i = -TILE / 2 + 4; i < TILE / 2; i += 8) {
           const dash = new THREE.Mesh(new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4), lineMat);
-          dash.rotation.x = -Math.PI / 2;
-          dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i));
-          cityGroup.add(dash);
+          dash.rotation.x = -Math.PI / 2; dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i)); cityGroup.add(dash);
         }
+        // Spawn Pedestrians randomly on roads
+        if (Math.random() < 0.1) spawnPedestrian(cityGroup, x, z);
       } else if (type === 1) {
         const n = 1 + Math.floor(Math.random() * 3);
         for (let i = 0; i < n; i++) {
-          const w = 6 + Math.random() * 8;
-          const d = 6 + Math.random() * 8;
-          const h = 10 + Math.random() * 45;
-          const hue = Math.random() * 0.15 + 0.55;
-          const mat = getBuildingMat(hue).clone();
-          mat.map = windowTex.clone();
-          mat.map.repeat.set(Math.max(1, Math.floor(w / 4)), Math.max(1, Math.floor(h / 6)));
-          mat.map.needsUpdate = true;
+          const w = 6 + Math.random() * 8, d = 6 + Math.random() * 8, h = 10 + Math.random() * 45;
+          const mat = getBuildingMat(Math.random() * 0.15 + 0.55).clone();
+          mat.map = windowTex.clone(); mat.map.repeat.set(Math.max(1, Math.floor(w / 4)), Math.max(1, Math.floor(h / 6))); mat.map.needsUpdate = true;
           const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-          const ox = (Math.random() - 0.5) * (TILE - w - 2);
-          const oz = (Math.random() - 0.5) * (TILE - d - 2);
-          b.position.set(x + ox, h / 2, z + oz);
-          cityGroup.add(b);
+          const ox = (Math.random() - 0.5) * (TILE - w - 2), oz = (Math.random() - 0.5) * (TILE - d - 2);
+          b.position.set(x + ox, h / 2, z + oz); b.castShadow = true; b.receiveShadow = true; cityGroup.add(b);
           collisionObjects.push({ pos: new THREE.Vector3(x + ox, 0, z + oz), radius: Math.max(w, d) / 2 });
         }
       } else {
-        for (let i = 0; i < 4; i++) {
-          addTree(cityGroup, x + (Math.random() - 0.5) * (TILE - 4), z + (Math.random() - 0.5) * (TILE - 4));
-        }
+        for (let i = 0; i < 4; i++) addTree(cityGroup, x + (Math.random() - 0.5) * (TILE - 4), z + (Math.random() - 0.5) * (TILE - 4));
       }
     }
   }
 
-  // 4. Place Bus Stops
+  // 3. Stops & Traffic
   const stopCandidates = [];
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
-    }
-  }
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
   let si = 0;
   while (stops.length < 6 && si < stopCandidates.length) {
-    const { r, c } = stopCandidates[si++];
-    const { x, z } = tileToWorld(r, c);
+    const { r, c } = stopCandidates[si++]; const { x, z } = tileToWorld(r, c);
     stops.push(makeBusStop(cityGroup, x + TILE / 2 - 2, z));
   }
+  for (let k = 0; k < 12; k++) spawnTraffic(cityGroup);
 
-  // 5. Spawn Traffic
-  for (let k = 0; k < 10; k++) spawnTraffic(cityGroup);
+  // 4. Night Mode Logic (20% chance)
+  if (Math.random() < 0.2) {
+    scene.background = new THREE.Color(0x050510);
+    scene.fog = new THREE.Fog(0x050510, 50, 200);
+    hemiLight.intensity = 0.2; sun.intensity = 0.1;
+    // Add street lights to road corners
+    for (let r = 0; r < GRID; r+=4) {
+      for (let c = 0; c < GRID; c+=4) {
+        const { x, z } = tileToWorld(r, c);
+        const light = new THREE.PointLight(0xffaa00, 2, 30);
+        light.position.set(x, 8, z); cityGroup.add(light);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+        lamp.position.set(x, 8, z); cityGroup.add(lamp);
+      }
+    }
+  } else {
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.Fog(0x87ceeb, 120, 320);
+    hemiLight.intensity = 1.1; sun.intensity = 1.3;
+  }
 
-  // 6. Reset Bus Position
-  bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-  bus.rotation.y = Math.PI / 2; 
-  state.speed = 0;
+  // 5. Reset Bus & State
+  bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2); bus.rotation.y = Math.PI / 2;
+  state.speed = 0; state.timer = 150; state.combo = 1;
 }
 
 // ================= INPUT =================
 const keys = {};
 addEventListener('keydown', e => {
-  const k = e.key.toLowerCase();
-  keys[k] = true;
+  const k = e.key.toLowerCase(); keys[k] = true;
   if (k === 'c') state.cockpit = !state.cockpit;
 });
 addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-canvas.addEventListener('touchstart', (e) => {
-  if (state.cockpit) return; 
-  isDragging = true;
-  previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-}, {passive: false});
+canvas.addEventListener('touchstart', (e) => { if (state.cockpit) return; isDragging = true; previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, {passive: false});
 canvas.addEventListener('touchend', () => { isDragging = false; });
 canvas.addEventListener('touchmove', (e) => {
   if (!isDragging || state.cockpit) return;
   const deltaX = e.touches[0].clientX - previousMousePosition.x;
   const deltaY = e.touches[0].clientY - previousMousePosition.y;
-  camOffset.x -= deltaX * 0.01;
-  camOffset.y -= deltaY * 0.01;
+  camOffset.x -= deltaX * 0.01; camOffset.y -= deltaY * 0.01;
   camOffset.y = Math.max(-0.5, Math.min(1.0, camOffset.y));
   previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 }, {passive: false});
@@ -293,37 +250,36 @@ function updateHUD() {
   $('fuel').textContent = Math.round(state.fuel);
   $('cond').textContent = Math.round(state.cond);
   $('day').textContent = state.day;
+  $('timer').textContent = Math.ceil(state.timer);
+  $('timer').style.color = state.timer < 30 ? '#ef4444' : '#facc15';
   $('speedText').textContent = Math.round(state.speed) + ' km/h';
   $('speedBar').style.width = Math.abs(state.speed / state.maxSpeed * 100) + '%';
+  
+  const comboEl = $('combo');
+  if (state.combo > 1) { comboEl.textContent = `🔥 COMBO x${state.combo}`; comboEl.style.opacity = 1; }
+  else { comboEl.style.opacity = 0; }
 
   const next = stops.find(s => !s.used);
-  if (next) {
-    const d = Math.round(next.world.distanceTo(bus.position));
-    $('nextStop').textContent = d + 'm';
-  } else {
-    $('nextStop').textContent = 'Shift Done!';
-  }
+  $('nextStop').textContent = next ? Math.round(next.world.distanceTo(bus.position)) + 'm' : 'Done!';
 }
 
+// ================= PHYSICS & LOGIC =================
 function updateBus(dt) {
-  const isGas = keys['w'] || keys['arrowup'];
-  const isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
-  const isRev = keys['r'];
+  const isGas = keys['w'] || keys['arrowup'], isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
-
-  const accelForce = 45;
-  const brakeForce = 80;
-  const drag = 2.5;
+  
+  const accelForce = 45, brakeForce = 80, drag = 2.5;
 
   if (isGas) state.speed += accelForce * dt;
   else if (isBrake) state.speed -= brakeForce * dt;
-  else if (isRev) state.speed -= 25 * dt;
-  else {
-    if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt);
-    if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt);
-  }
-
+  else { if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt); if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt); }
   state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
+
+  // Engine Sound
+  if (audioCtx && engineOsc) {
+    engineOsc.frequency.setTargetAtTime(50 + Math.abs(state.speed) * 3, audioCtx.currentTime, 0.1);
+    engineGain.gain.setTargetAtTime(Math.min(0.1, Math.abs(state.speed) * 0.002), audioCtx.currentTime, 0.1);
+  }
 
   state.steer += (steerInput - state.steer) * Math.min(1, dt * 8);
   const turnFactor = 1.2 * (state.speed / state.maxSpeed);
@@ -334,19 +290,16 @@ function updateBus(dt) {
   
   let hit = false;
   for (let obj of collisionObjects) {
-    if (Math.hypot(nextX - obj.pos.x, nextZ - obj.pos.z) < obj.radius + 2.5) {
-      hit = true;
-      break;
-    }
+    if (Math.hypot(nextX - obj.pos.x, nextZ - obj.pos.z) < obj.radius + 2.5) { hit = true; break; }
   }
 
   if (hit) {
-    state.speed = 0;
-    state.cond = Math.max(0, state.cond - 5);
+    if (state.speed > 20) state.shake = 0.5; // Screen shake on hard hit
+    state.speed = 0; state.cond = Math.max(0, state.cond - 5);
+    state.combo = 1; // Lose combo on crash
     updateHUD();
   } else {
-    bus.position.x = nextX;
-    bus.position.z = nextZ;
+    bus.position.x = nextX; bus.position.z = nextZ;
   }
 
   const lim = HALF - 4;
@@ -358,138 +311,227 @@ function updateBus(dt) {
   if (state.fuel <= 0) state.speed = 0;
 }
 
-let camInitialised = false;
-
-function updateCamera(dt) {
-  if (intro.active && !intro.transitioning) {
-    const t = Math.min(1, (performance.now() - intro.startTime) / intro.duration);
-    const ease = t * t * (3 - 2 * t);
-    const ang = -0.6 + ease * 0.9;
-    camera.position.set(Math.sin(ang) * 220, 170 - ease * 25, Math.cos(ang) * 220);
-    camera.lookAt(0, 0, 0);
-    camera.fov = 55;
-    camera.updateProjectionMatrix();
-    return;
-  }
-
-  if (intro.transitioning) {
-    intro.transition = Math.min(1, intro.transition + dt * 0.9);
-    const e = intro.transition * intro.transition * (3 - 2 * intro.transition);
-    const chase = new THREE.Vector3(0, 8, -14).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
-    const from = new THREE.Vector3(0, 170, 220);
-    camera.position.lerpVectors(from, chase, e);
-    camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
-    camera.fov = 60 + 15 * (1 - e);
-    camera.updateProjectionMatrix();
-    if (intro.transition >= 1) {
-      intro.transitioning = false;
-      intro.active = false;
-      camInitialised = false;
-      state.paused = false;
+function updateTraffic(dt) {
+  traffic.forEach(car => {
+    car.position.x += car.userData.speed * dt * car.userData.direction;
+    if (car.position.x < -HALF) car.position.x = HALF;
+    if (car.position.x > HALF) car.position.x = -HALF;
+    
+    if (car.position.distanceTo(bus.position) < 4) {
+      if (Math.abs(state.speed) > 10) state.shake = 0.6;
+      state.speed = 0; state.cond = Math.max(0, state.cond - 15); state.rep = Math.max(0, state.rep - 5);
+      state.combo = 1;
+      bus.position.x -= Math.sin(bus.rotation.y) * 2; bus.position.z -= Math.cos(bus.rotation.y) * 2;
+      updateHUD();
     }
-    return;
-  }
+  });
+}
 
-  if (state.cockpit) {
-    const local = new THREE.Vector3(0, 2.5, 6.5); 
-    const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
-    camera.position.copy(world);
-    const look = new THREE.Vector3(0, 2.0, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
-    camera.lookAt(look);
-    camera.fov = 75;
-  } else {
-    const offset = new THREE.Vector3(0, 8, -14);
-    const rotationMatrix = new THREE.Matrix4().makeRotationY(camOffset.x);
-    offset.applyMatrix4(rotationMatrix);
-    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
-    offset.y += camOffset.y * 10;
-
-    const target = bus.position.clone().add(offset);
-    if (!camInitialised) {
-      camera.position.copy(target);
-      camInitialised = true;
-    } else {
-      camera.position.lerp(target, Math.min(1, dt * 4));
+function updatePeds(dt) {
+  peds.forEach(p => {
+    p.position.x += p.userData.speed * dt * p.userData.dir;
+    if (Math.abs(p.position.x - (-HALF + TILE/2)) > TILE) p.userData.dir *= -1; // turn around at crosswalk bounds
+    
+    if (p.position.distanceTo(bus.position) < 3) {
+      state.rep = Math.max(0, state.rep - 20); // Massive penalty
+      state.speed = 0; state.shake = 0.8; state.combo = 1;
+      p.position.set(0, -10, 0); // Hide ped (knocked out)
+      updateHUD();
     }
-    camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
-    camera.fov = 60;
-  }
-  camera.updateProjectionMatrix();
+  });
 }
 
 const promptYesBtn = $('promptYes');
-const promptNoBtn = $('promptNo');
-
 promptYesBtn.onclick = (e) => {
   e.preventDefault();
-  state.money += 8;
-  state.rep = Math.min(100, state.rep + 2);
-  state.passengers++;
-  $('prompt').classList.add('hidden');
-  state.paused = false;
-  updateHUD();
+  const earn = 8 * state.combo;
+  state.money += earn; state.rep = Math.min(100, state.rep + 2); state.passengers++;
+  state.timer += 10; // Time bonus!
+  state.combo = Math.min(5, state.combo + 1); // Increase combo (max 5x)
+  $('prompt').classList.add('hidden'); state.paused = false; updateHUD();
 };
-
-promptNoBtn.onclick = (e) => {
-  e.preventDefault();
-  state.rep = Math.max(0, state.rep - 1); 
-  $('prompt').classList.add('hidden');
-  state.paused = false;
-  updateHUD();
+$('promptNo').onclick = (e) => {
+  e.preventDefault(); state.rep = Math.max(0, state.rep - 1); state.combo = 1;
+  $('prompt').classList.add('hidden'); state.paused = false; updateHUD();
 };
 
 function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
-    
     if (wp.distanceTo(bus.position) < 16 && Math.abs(state.speed) < 8) {
-      s.used = true;
-      state.paused = true; 
-      s.zone.material.color.set(0x22c55e);
+      s.used = true; state.paused = true; s.zone.material.color.set(0x22c55e);
       keys['w'] = false; keys['s'] = false;
+      $('promptText').textContent = `🚏 Stop reached! Combo x${state.combo} (+$${8 * state.combo})`;
+      $('promptYes').textContent = `Yes (+$${8 * state.combo}, +10s)`;
       $('prompt').classList.remove('hidden');
     }
   });
 }
 
-function updateTraffic(dt) {
-  traffic.forEach(car => {
-    car.position.x += car.userData.speed * dt;
-    if (car.position.x > HALF) car.position.x = -HALF;
-    if (car.position.distanceTo(bus.position) < 3.5) {
-      state.speed = 0; 
-      state.cond = Math.max(0, state.cond - 15);
-      state.rep = Math.max(0, state.rep - 5);
-      updateHUD();
-    }
-  });
-}
-
-function checkShiftEnd() {
-  // End shift only when every stop is marked as used
-  const allStopsDone = stops.every(s => s.used);
-  if (allStopsDone && !state.gameOver && !state.paused) {
-    endDay();
+let camInitialised = false;
+function updateCamera(dt) {
+  if (intro.active && !intro.transitioning) {
+    const t = Math.min(1, (performance.now() - intro.startTime) / intro.duration);
+    const ease = t * t * (3 - 2 * t); const ang = -0.6 + ease * 0.9;
+    camera.position.set(Math.sin(ang) * 220, 170 - ease * 25, Math.cos(ang) * 220);
+    camera.lookAt(0, 0, 0); camera.fov = 55; camera.updateProjectionMatrix(); return;
   }
+  if (intro.transitioning) {
+    intro.transition = Math.min(1, intro.transition + dt * 0.9);
+    const e = intro.transition * intro.transition * (3 - 2 * intro.transition);
+    const chase = new THREE.Vector3(0, 8, -14).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    const from = new THREE.Vector3(0, 170, 220);
+    camera.position.lerpVectors(from, chase, e); camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z);
+    camera.fov = 60 + 15 * (1 - e); camera.updateProjectionMatrix();
+    if (intro.transition >= 1) { intro.transitioning = false; intro.active = false; camInitialised = false; state.paused = false; }
+    return;
+  }
+
+  // Screen Shake
+  let shakeX = 0, shakeY = 0;
+  if (state.shake > 0) {
+    shakeX = (Math.random() - 0.5) * state.shake; shakeY = (Math.random() - 0.5) * state.shake;
+    state.shake = Math.max(0, state.shake - dt * 2);
+  }
+
+  if (state.cockpit) {
+    const local = new THREE.Vector3(0, 2.5, 6.5); 
+    const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    camera.position.copy(world); camera.position.x += shakeX; camera.position.y += shakeY;
+    const look = new THREE.Vector3(0, 2.0, 20).applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
+    camera.lookAt(look); camera.fov = 75;
+  } else {
+    const offset = new THREE.Vector3(0, 8, -14);
+    offset.applyMatrix4(new THREE.Matrix4().makeRotationY(camOffset.x));
+    offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y);
+    offset.y += camOffset.y * 10;
+    const target = bus.position.clone().add(offset);
+    if (!camInitialised) { camera.position.copy(target); camInitialised = true; } 
+    else { camera.position.lerp(target, Math.min(1, dt * 4)); }
+    camera.position.x += shakeX; camera.position.y += shakeY;
+    camera.lookAt(bus.position.x, bus.position.y + 2, bus.position.z); camera.fov = 60;
+  }
+  camera.updateProjectionMatrix();
 }
 
-function endDay() {
-  state.paused = true;
-  state.day++;
-  state.money -= 20;
-  state.fuel = Math.min(100, state.fuel + 30);
-  state.cond = Math.min(100, state.cond + 10);
-  state.rep = Math.max(0, state.rep - 1);
+// ================= MINIMAP =================
+const mm = document.getElementById('minimap'); const mctx = mm.getContext('2d');
+function drawMinimap() {
+  mctx.clearRect(0, 0, 180, 180);
+  mctx.fillStyle = 'rgba(0,0,0,0.4)'; mctx.fillRect(0, 0, 180, 180);
+  const scale = 180 / (GRID * TILE); const ox = 90, oy = 90;
+  mctx.fillStyle = '#555';
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (map[r][c] === 0) {
+    mctx.fillRect(ox + (-HALF + c * TILE) * scale, oy + (-HALF + r * TILE) * scale, TILE * scale, TILE * scale);
+  }
+  stops.forEach(s => {
+    mctx.fillStyle = s.used ? '#22c55e' : '#2563eb'; mctx.beginPath();
+    mctx.arc(ox + s.world.x * scale, oy + s.world.z * scale, 3, 0, Math.PI * 2); mctx.fill();
+  });
+  mctx.save(); mctx.translate(ox + bus.position.x * scale, oy + bus.position.z * scale);
+  mctx.rotate(-bus.rotation.y); mctx.fillStyle = '#facc15'; mctx.beginPath();
+  mctx.moveTo(0, -6); mctx.lineTo(4, 5); mctx.lineTo(-4, 5); mctx.closePath(); mctx.fill(); mctx.restore();
+}
 
-  // Check for Game Over / Win before generating new map
-  if (state.day > state.maxDays || state.rep <= 0 || state.money < -100) {
-    const win = state.money >= 500 && state.rep >= 30;
-    showOverlay(
-      win ? "🏆 You made it!" : "🚌 Game Over",
-      `Final: 💰 $${Math.round(state.money)} · ⭐ ${Math.round(state.rep)} · Passengers: ${state.passengers}`,
-      "Play again",
-      () => location.reload()
-    );
-    state.gameOver = true;
-    return
+// ================= GAME LOOP & SHOP =================
+const shopEl = $('shop');
+function openShop() {
+  state.paused = true;
+  shopEl.classList.remove('hidden');
+  $('buy-repair').disabled = state.money < 50 || state.cond >= 100;
+  $('buy-fuel').disabled = state.money < 30 || state.fuel >= 100;
+  $('buy-engine').disabled = state.money < 100 || state.maxSpeed >= 140;
+}
+$('buy-repair').onclick = () => { if(state.money >= 50) { state.money -= 50; state.cond = 100; openShop(); updateHUD(); } };
+$('buy-fuel').onclick = () => { if(state.money >= 30) { state.money -= 30; state.fuel = 100; openShop(); updateHUD(); } };
+$('buy-engine').onclick = () => { if(state.money >= 100) { state.money -= 100; state.maxSpeed += 20; openShop(); updateHUD(); } };
+
+$('shop-continue').onclick = () => {
+  shopEl.classList.add('hidden');
+  state.day++;
+  if (state.day > state.maxDays) {
+    shopEl.classList.add('hidden');
+    $('overlay').classList.remove('hidden');
+    $('overlayTitle').textContent = "🏆 You survived 20 shifts!";
+    $('overlayText').textContent = `Final: 💰 $${Math.round(state.money)} · ⭐ ${Math.round(state.rep)}`;
+    $('overlayBtn').onclick = () => location.reload();
+    return;
+  }
+  // Reset daily costs
+  state.money -= 20; state.rep = Math.max(0, state.rep - 1);
+  generateCity(); updateHUD();
+  state.paused = false;
+};
+
+function endShift() {
+  state.paused = true;
+  if (state.day >= state.maxDays) {
+    state.day++;
+    $('overlay').classList.remove('hidden');
+    $('overlayTitle').textContent = "🏆 You survived 20 shifts!";
+    $('overlayText').textContent = `Final: 💰 $${Math.round(state.money)} · ⭐ ${Math.round(state.rep)}`;
+    $('overlayBtn').onclick = () => location.reload();
+    return;
+  }
+  $('overlay').classList.remove('hidden');
+  $('overlayTitle').textContent = `📅 Shift ${state.day} Complete!`;
+  $('overlayText').textContent = "Great job! Time to upgrade your bus.";
+  $('overlayBtn').textContent = "Open Shop 🛒";
+  $('overlayBtn').onclick = () => { $('overlay').classList.add('hidden'); openShop(); };
+}
+
+let last = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  if (!state.paused && !state.gameOver) {
+    updateBus(dt); updateTraffic(dt); updatePeds(dt); checkStops();
+    updateHUD();
+
+    // Timer Logic
+    state.timer -= dt;
+    if (state.timer <= 0) {
+      state.timer = 0; updateHUD(); endShift();
+    }
+    // Check if all stops hit
+    if (stops.every(s => s.used)) endShift();
+  }
+  updateCamera(dt);
+  drawMinimap();
+  renderer.render(scene, camera);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// Bind Touch Controls
+function bindTouch(id, key) {
+  const btn = document.getElementById(id); if (!btn) return;
+  const press = (e) => { e.preventDefault(); if (state.paused) return; keys[key] = true; };
+  const release = (e) => { e.preventDefault(); keys[key] = false; };
+  btn.addEventListener('pointerdown', press); btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointerleave', release);
+  btn.addEventListener('touchstart', press, {passive: false}); btn.addEventListener('touchend', release, {passive: false});
+}
+bindTouch('btn-left', 'a'); bindTouch('btn-right', 'd'); bindTouch('btn-gas', 'w'); bindTouch('btn-brake', 's'); bindTouch('btn-rev', 'r');
+document.getElementById('btn-cam').addEventListener('click', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; });
+
+// Start Game
+const startBtn = document.getElementById('startBtn');
+startBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  initAudio(); // Start audio on user gesture
+  document.getElementById('intro').classList.add('fade-out');
+  document.body.classList.remove('intro');
+  setTimeout(() => { document.getElementById('intro').style.display = 'none'; }, 800);
+  intro.transitioning = true; intro.transition = 0;
+});
+
+// INITIAL SETUP
+generateCity();
+updateHUD();
+animate();
