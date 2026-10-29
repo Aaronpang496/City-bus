@@ -9,7 +9,8 @@ const state = {
   steer: 0, paused: true, gameOver: false,
   passengers: 0, cockpit: false,
   timer: 150, combo: 1, shake: 0,
-  shiftActive: false, lightTimer: 0,
+  shiftActive: false, lightTimer: 0, lightPhase: 'green', lightCooldown: 0,
+  lightIntersections: []
 };
 
 const camOffset = { x: 0, y: 0 };
@@ -157,7 +158,8 @@ function spawnPedestrian(group, x, z) {
 
 function generateCity() {
   cityGroup.clear(); map = []; collisionObjects = []; stops = []; traffic = []; peds = []; trafficLights = [];
-  state.lightTimer = 0;
+  state.lightTimer = 0; state.lightPhase = 'green'; state.lightCooldown = 0;
+  
   for (let r = 0; r < GRID; r++) {
     map[r] = [];
     for (let c = 0; c < GRID; c++) {
@@ -165,7 +167,13 @@ function generateCity() {
       map[r][c] = isRoad ? 0 : (Math.random() < 0.25 ? 2 : 1);
     }
   }
+  
   const lightSpots = [ { r: 4, c: 4 }, { r: 4, c: 8 }, { r: 8, c: 4 }, { r: 8, c: 8 } ];
+  state.lightIntersections = lightSpots.map(spot => {
+    const w = tileToWorld(spot.r, spot.c);
+    return new THREE.Vector3(w.x, 0, w.z);
+  });
+
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const { x, z } = tileToWorld(r, c); const type = map[r][c];
@@ -194,11 +202,13 @@ function generateCity() {
       }
     }
   }
+  
   lightSpots.forEach(({ r, c }) => {
     const { x, z } = tileToWorld(r, c);
     trafficLights.push(makeTrafficLight(cityGroup, x, z, true));
     trafficLights.push(makeTrafficLight(cityGroup, x, z, false));
   });
+  
   const stopCandidates = [];
   for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
   let si = 0;
@@ -207,21 +217,24 @@ function generateCity() {
     stops.push(makeBusStop(cityGroup, x + TILE / 2 - 2, z));
   }
   for (let k = 0; k < 12; k++) spawnTraffic(cityGroup);
+  
+  // OPTIMIZED NIGHT MODE (No PointLights = No Lag)
   if (Math.random() < 0.2) {
     scene.background = new THREE.Color(0x050510);
     scene.fog = new THREE.Fog(0x050510, 50, 200);
-    hemiLight.intensity = 0.2; sun.intensity = 0.1;
+    hemiLight.intensity = 0.35; sun.intensity = 0.2;
     for (let r = 0; r < GRID; r+=4) {
       for (let c = 0; c < GRID; c+=4) {
         const { x, z } = tileToWorld(r, c);
-        const light = new THREE.PointLight(0xffaa00, 2, 30); light.position.set(x, 8, z); cityGroup.add(light);
-        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffaa00 })); lamp.position.set(x, 8, z); cityGroup.add(lamp);
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+        lamp.position.set(x, 8, z); cityGroup.add(lamp);
       }
     }
   } else {
     scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.Fog(0x87ceeb, 120, 320);
     hemiLight.intensity = 1.1; sun.intensity = 1.3;
   }
+  
   bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2); bus.rotation.y = Math.PI / 2;
   state.speed = 0; state.timer = 150; state.combo = 1;
 }
@@ -310,34 +323,64 @@ function updateHUD() {
 function updateBus(dt) {
   const isGas = keys['w'] || keys['arrowup'], isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
-  const accelForce = 45, brakeForce = 80, drag = 2.5;
-  if (isGas) state.speed += accelForce * dt;
-  else if (isBrake) state.speed -= brakeForce * dt;
-  else { if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt); if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt); }
-  state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
+  
+  const accelForce = 15; 
+  const brakeForce = 60; 
+  const drag = 4.5; 
+  const maxReverse = -15;
+
+  // Fuel logic
+  if (state.fuel <= 0) {
+    state.speed -= 10 * dt; 
+    if (state.speed < 0) state.speed = 0;
+  } 
+  // Condition logic
+  else if (state.cond <= 0) {
+    state.speed = 0;
+    endShift(); // Breaks down immediately
+    return;
+  } 
+  else {
+    if (isGas) {
+      state.speed += accelForce * dt;
+    } else if (isBrake) {
+      state.speed -= brakeForce * dt;
+    } else {
+      if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt);
+      if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt);
+    }
+  }
+
+  state.speed = Math.max(maxReverse, Math.min(state.maxSpeed, state.speed));
+
   if (audioCtx && engineOsc) {
     engineOsc.frequency.setTargetAtTime(50 + Math.abs(state.speed) * 3, audioCtx.currentTime, 0.1);
     engineGain.gain.setTargetAtTime(Math.min(0.1, Math.abs(state.speed) * 0.002), audioCtx.currentTime, 0.1);
   }
+
   state.steer += (steerInput - state.steer) * Math.min(1, dt * 8);
   const turnFactor = 1.2 * (state.speed / state.maxSpeed);
   bus.rotation.y += state.steer * turnFactor * dt;
+
   const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt;
   const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt;
+  
   let hit = false;
   for (let obj of collisionObjects) {
     if (Math.hypot(nextX - obj.pos.x, nextZ - obj.pos.z) < obj.radius + 2.5) { hit = true; break; }
   }
+
   if (hit) {
     if (state.speed > 20) state.shake = 0.5; 
     state.speed = 0; state.cond = Math.max(0, state.cond - 5); state.combo = 1; updateHUD();
   } else { bus.position.x = nextX; bus.position.z = nextZ; }
+
   const lim = HALF - 4;
   bus.position.x = Math.max(-lim, Math.min(lim, bus.position.x));
   bus.position.z = Math.max(-lim, Math.min(lim, bus.position.z));
+
   state.fuel = Math.max(0, state.fuel - Math.abs(state.speed) * dt * 0.02);
   state.cond = Math.max(0, state.cond - Math.abs(state.speed) * dt * 0.005);
-  if (state.fuel <= 0) state.speed = 0;
 }
 
 function updateTraffic(dt) {
@@ -358,6 +401,8 @@ function updateTrafficLights(dt) {
   state.lightTimer += dt;
   const cycle = state.lightTimer % 10;
   let phase = cycle < 4 ? 'green' : (cycle < 5 ? 'yellow' : (cycle < 9 ? 'red' : 'yellow'));
+  state.lightPhase = phase;
+
   trafficLights.forEach(tl => {
     let effectivePhase = phase;
     if (!tl.isHorizontal) {
@@ -370,6 +415,24 @@ function updateTrafficLights(dt) {
     else if (effectivePhase === 'yellow') tl.glow.color.set(0xffff00);
     else tl.glow.color.set(0x00ff00);
   });
+
+  // RED LIGHT PENALTY
+  if (state.lightCooldown > 0) state.lightCooldown -= dt;
+  
+  if (state.lightPhase === 'red' && Math.abs(state.speed) > 10) {
+    state.lightIntersections.forEach(intersection => {
+      if (bus.position.distanceTo(intersection) < 15) {
+        if (state.lightCooldown <= 0) {
+          state.money = Math.max(0, state.money - 15);
+          state.rep = Math.max(0, state.rep - 5);
+          state.combo = 1;
+          state.shake = 0.4;
+          state.lightCooldown = 3; // 3 seconds cooldown
+          updateHUD();
+        }
+      }
+    });
+  }
 }
 
 function updatePeds(dt) {
@@ -553,7 +616,7 @@ function bindTouch(id, key) {
   btn.addEventListener('pointerleave', release);
   btn.addEventListener('touchstart', press, {passive: false}); btn.addEventListener('touchend', release, {passive: false});
 }
-bindTouch('btn-left', 'a'); bindTouch('btn-right', 'd'); bindTouch('btn-gas', 'w'); bindTouch('btn-brake', 's'); bindTouch('btn-rev', 'r');
+bindTouch('btn-left', 'a'); bindTouch('btn-right', 'd'); bindTouch('btn-gas', 'w'); bindTouch('btn-brake', 's');
 document.getElementById('btn-cam').addEventListener('click', (e) => { e.preventDefault(); state.cockpit = !state.cockpit; });
 
 const startBtn = document.getElementById('startBtn');
