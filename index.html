@@ -20,8 +20,8 @@
     .stat { display: flex; gap: 5px; align-items: center; }
     .stat b { color: #facc15; }
     
-    /* Timer and Combo styling */
     #timer { font-size: 18px; font-weight: bold; color: #ef4444; margin-left: 5px; }
+    
     #combo {
       position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
       color: #facc15; font-size: 28px; font-weight: bold; text-shadow: 0 2px 10px rgba(0,0,0,0.8);
@@ -40,14 +40,25 @@
     #speedBar { height: 8px; width: 0%; background: linear-gradient(90deg,#4ade80,#facc15,#ef4444); border-radius: 4px; transition: width 0.1s; }
     #speedText { font-size: 13px; display: block; margin-top: 6px; text-align: right; }
 
-    body.intro #topbar, body.intro #minimap, body.intro #speedo, body.intro #controls, body.intro #credit, body.intro #touch-controls { opacity: 0; pointer-events: none; }
+    /* NEW: Menu Button */
+    #menu-btn {
+      position: fixed; top: 80px; right: 12px;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(0,0,0,0.65); color: white; border: 2px solid rgba(255,255,255,0.2);
+      font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      z-index: 100; transition: opacity 0.6s ease, transform 0.1s;
+      -webkit-user-select: none; user-select: none;
+    }
+    #menu-btn:active { transform: scale(0.9); background: rgba(37, 99, 235, 0.8); }
 
-    #prompt, #overlay, #shop {
+    body.intro #topbar, body.intro #minimap, body.intro #speedo, body.intro #controls, body.intro #credit, body.intro #touch-controls, body.intro #menu-btn { opacity: 0; pointer-events: none; }
+
+    #prompt, #overlay, #shop, #pause-menu {
       position: fixed; inset: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center; background: rgba(0,0,0,0.85); color: #fff; text-align: center;
       padding: 24px; z-index: 999999;
     }
-    #prompt p, #overlay p, #shop p { font-size: 22px; max-width: 480px; margin-bottom: 18px; font-weight: bold; }
+    #prompt p, #overlay p, #shop p, #pause-menu p { font-size: 22px; max-width: 480px; margin-bottom: 18px; font-weight: bold; }
     .buttons { display: flex; gap: 12px; margin-top: 10px; }
     button {
       padding: 12px 24px; font-size: 18px; border: none; border-radius: 8px;
@@ -100,6 +111,9 @@
     <div class="stat"><span>🔧</span><b id="cond">100</b></div>
   </div>
 
+  <!-- NEW: Menu Button -->
+  <button id="menu-btn">⚙️</button>
+
   <div id="combo">🔥 COMBO x2</div>
   <canvas id="minimap" width="180" height="180"></canvas>
 
@@ -120,6 +134,16 @@
     <div class="buttons">
       <button id="promptYes">Yes (+$8)</button>
       <button id="promptNo">No (-1 Rep)</button>
+    </div>
+  </div>
+
+  <!-- NEW: Pause Menu -->
+  <div id="pause-menu" class="hidden">
+    <h1 style="margin-bottom: 20px;">⏸️ Paused</h1>
+    <div class="buttons" style="flex-direction: column; gap: 15px;">
+      <button id="resume-btn" style="background: #22c55e;">▶ Resume Shift</button>
+      <button id="pause-shop-btn" style="background: #f59e0b; color: #000;">🛒 Open Shop</button>
+      <button id="restart-btn" style="background: #ef4444;">🔄 Restart Game</button>
     </div>
   </div>
 
