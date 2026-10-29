@@ -48,15 +48,7 @@ const GRID = 14;
 const TILE = 30;
 const HALF = (GRID * TILE) / 2;
 
-const map = [];
-for (let r = 0; r < GRID; r++) {
-  map[r] = [];
-  for (let c = 0; c < GRID; c++) {
-    const isRoad = (r % 4 === 0) || (c % 4 === 0) || r === GRID - 1 || c === GRID - 1;
-    map[r][c] = isRoad ? 0 : (Math.random() < 0.25 ? 2 : 1);
-  }
-}
-
+// Materials reused across maps to save memory
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(GRID * TILE + 200, GRID * TILE + 200),
   new THREE.MeshStandardMaterial({ color: 0x3a7d44 })
@@ -66,11 +58,8 @@ scene.add(ground);
 
 const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
 const lineMat = new THREE.MeshStandardMaterial({ color: 0xffff00 });
-const collisionObjects = [];
-
-function tileToWorld(r, c) {
-  return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
-}
+const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
+const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x2f7d32 });
 
 const windowTex = (() => {
   const c = document.createElement('canvas');
@@ -98,70 +87,8 @@ function getBuildingMat(hue) {
   return m;
 }
 
-const treeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
-const treeLeafMat = new THREE.MeshStandardMaterial({ color: 0x2f7d32 });
-
-function addTree(x, z) {
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6), treeTrunkMat);
-  trunk.position.y = 1.5;
-  g.add(trunk);
-  const leaves = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), treeLeafMat);
-  leaves.position.y = 4.2;
-  g.add(leaves);
-  g.position.set(x, 0, z);
-  scene.add(g);
-  collisionObjects.push({ pos: new THREE.Vector3(x, 0, z), radius: 3 });
-}
-
-for (let r = 0; r < GRID; r++) {
-  for (let c = 0; c < GRID; c++) {
-    const { x, z } = tileToWorld(r, c);
-    const type = map[r][c];
-
-    if (type === 0) {
-      const road = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), roadMat);
-      road.rotation.x = -Math.PI / 2;
-      road.position.set(x, 0.02, z);
-      scene.add(road);
-
-      const horizontal = (r % 4 === 0);
-      for (let i = -TILE / 2 + 4; i < TILE / 2; i += 8) {
-        const dash = new THREE.Mesh(new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4), lineMat);
-        dash.rotation.x = -Math.PI / 2;
-        dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i));
-        scene.add(dash);
-      }
-    } else if (type === 1) {
-      const n = 1 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < n; i++) {
-        const w = 6 + Math.random() * 8;
-        const d = 6 + Math.random() * 8;
-        const h = 10 + Math.random() * 45;
-        const hue = Math.random() * 0.15 + 0.55;
-        const mat = getBuildingMat(hue).clone();
-        mat.map = windowTex.clone();
-        mat.map.repeat.set(Math.max(1, Math.floor(w / 4)), Math.max(1, Math.floor(h / 6)));
-        mat.map.needsUpdate = true;
-        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-        const ox = (Math.random() - 0.5) * (TILE - w - 2);
-        const oz = (Math.random() - 0.5) * (TILE - d - 2);
-        b.position.set(x + ox, h / 2, z + oz);
-        scene.add(b);
-        collisionObjects.push({ pos: new THREE.Vector3(x + ox, 0, z + oz), radius: Math.max(w, d) / 2 });
-      }
-    } else {
-      for (let i = 0; i < 4; i++) {
-        addTree(x + (Math.random() - 0.5) * (TILE - 4), z + (Math.random() - 0.5) * (TILE - 4));
-      }
-    }
-  }
-}
-
 // ================= BUS =================
 const bus = new THREE.Group();
-bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
-bus.rotation.y = Math.PI / 2; 
 scene.add(bus);
 
 const loader = new GLTFLoader();
@@ -184,8 +111,37 @@ loader.load('assets/bus.glb', (gltf) => {
   bus.add(body);
 });
 
-const stops = [];
-function makeBusStop(x, z) {
+// ================= CITY GENERATION =================
+let cityGroup = new THREE.Group();
+scene.add(cityGroup);
+
+let map = [];
+let collisionObjects = [];
+let stops = [];
+let traffic = [];
+const trafficMats = [];
+for (let k = 0; k < 6; k++) {
+  trafficMats.push(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
+}
+
+function tileToWorld(r, c) {
+  return { x: -HALF + c * TILE + TILE / 2, z: -HALF + r * TILE + TILE / 2 };
+}
+
+function addTree(group, x, z) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6), treeTrunkMat);
+  trunk.position.y = 1.5;
+  g.add(trunk);
+  const leaves = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 6), treeLeafMat);
+  leaves.position.y = 4.2;
+  g.add(leaves);
+  g.position.set(x, 0, z);
+  group.add(g);
+  collisionObjects.push({ pos: new THREE.Vector3(x, 0, z), radius: 3 });
+}
+
+function makeBusStop(group, x, z) {
   const g = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }));
   pole.position.y = 2;
@@ -202,42 +158,109 @@ function makeBusStop(x, z) {
   const bench = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x7c4a1e }));
   bench.position.set(0, 0.8, -2.6);
   g.add(bench);
-  const zone = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 6), new THREE.MeshBasicMaterial({ visible: false }));
+  const zone = new THREE.Mesh(new THREE.BoxGeometry(8, 1, 8), new THREE.MeshBasicMaterial({ visible: false }));
   g.add(zone);
   g.position.set(x, 0, z);
-  scene.add(g);
+  group.add(g);
   return { group: g, zone, used: false, world: new THREE.Vector3(x, 0, z) };
 }
 
-const stopCandidates = [];
-for (let r = 0; r < GRID; r++) {
-  for (let c = 0; c < GRID; c++) {
-    if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
-  }
-}
-let si = 0;
-while (stops.length < 6 && si < stopCandidates.length) {
-  const { r, c } = stopCandidates[si++];
-  const { x, z } = tileToWorld(r, c);
-  stops.push(makeBusStop(x + TILE / 2 - 2, z));
-}
-
-const traffic = [];
-const trafficMats = [];
-for (let k = 0; k < 6; k++) {
-  trafficMats.push(new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(Math.random(), 0.6, 0.5) }));
-}
-function spawnTraffic() {
+function spawnTraffic(group) {
   const car = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 4), trafficMats[Math.floor(Math.random() * trafficMats.length)]);
   const r = 4 * (1 + Math.floor(Math.random() * 2));
   const { z } = tileToWorld(r, 0);
   car.position.set(-HALF + 2, 0.7, z);
   car.userData.speed = 15 + Math.random() * 15;
-  scene.add(car);
+  group.add(car);
   traffic.push(car);
 }
-for (let k = 0; k < 10; k++) spawnTraffic();
 
+function generateCity() {
+  // 1. Clear old world
+  cityGroup.clear();
+  map = [];
+  collisionObjects = [];
+  stops = [];
+  traffic = [];
+
+  // 2. Generate new map data
+  for (let r = 0; r < GRID; r++) {
+    map[r] = [];
+    for (let c = 0; c < GRID; c++) {
+      const isRoad = (r % 4 === 0) || (c % 4 === 0) || r === GRID - 1 || c === GRID - 1;
+      map[r][c] = isRoad ? 0 : (Math.random() < 0.25 ? 2 : 1);
+    }
+  }
+
+  // 3. Build 3D objects
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const { x, z } = tileToWorld(r, c);
+      const type = map[r][c];
+
+      if (type === 0) {
+        const road = new THREE.Mesh(new THREE.PlaneGeometry(TILE, TILE), roadMat);
+        road.rotation.x = -Math.PI / 2;
+        road.position.set(x, 0.02, z);
+        cityGroup.add(road);
+
+        const horizontal = (r % 4 === 0);
+        for (let i = -TILE / 2 + 4; i < TILE / 2; i += 8) {
+          const dash = new THREE.Mesh(new THREE.PlaneGeometry(horizontal ? 4 : 0.5, horizontal ? 0.5 : 4), lineMat);
+          dash.rotation.x = -Math.PI / 2;
+          dash.position.set(x + (horizontal ? i : 0), 0.03, z + (horizontal ? 0 : i));
+          cityGroup.add(dash);
+        }
+      } else if (type === 1) {
+        const n = 1 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) {
+          const w = 6 + Math.random() * 8;
+          const d = 6 + Math.random() * 8;
+          const h = 10 + Math.random() * 45;
+          const hue = Math.random() * 0.15 + 0.55;
+          const mat = getBuildingMat(hue).clone();
+          mat.map = windowTex.clone();
+          mat.map.repeat.set(Math.max(1, Math.floor(w / 4)), Math.max(1, Math.floor(h / 6)));
+          mat.map.needsUpdate = true;
+          const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+          const ox = (Math.random() - 0.5) * (TILE - w - 2);
+          const oz = (Math.random() - 0.5) * (TILE - d - 2);
+          b.position.set(x + ox, h / 2, z + oz);
+          cityGroup.add(b);
+          collisionObjects.push({ pos: new THREE.Vector3(x + ox, 0, z + oz), radius: Math.max(w, d) / 2 });
+        }
+      } else {
+        for (let i = 0; i < 4; i++) {
+          addTree(cityGroup, x + (Math.random() - 0.5) * (TILE - 4), z + (Math.random() - 0.5) * (TILE - 4));
+        }
+      }
+    }
+  }
+
+  // 4. Place Bus Stops
+  const stopCandidates = [];
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (map[r][c] === 0 && Math.random() < 0.15) stopCandidates.push({ r, c });
+    }
+  }
+  let si = 0;
+  while (stops.length < 6 && si < stopCandidates.length) {
+    const { r, c } = stopCandidates[si++];
+    const { x, z } = tileToWorld(r, c);
+    stops.push(makeBusStop(cityGroup, x + TILE / 2 - 2, z));
+  }
+
+  // 5. Spawn Traffic
+  for (let k = 0; k < 10; k++) spawnTraffic(cityGroup);
+
+  // 6. Reset Bus Position
+  bus.position.set(-HALF + TILE / 2, 0, -HALF + TILE / 2);
+  bus.rotation.y = Math.PI / 2; 
+  state.speed = 0;
+}
+
+// ================= INPUT =================
 const keys = {};
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -278,27 +301,36 @@ function updateHUD() {
     const d = Math.round(next.world.distanceTo(bus.position));
     $('nextStop').textContent = d + 'm';
   } else {
-    $('nextStop').textContent = 'Done';
+    $('nextStop').textContent = 'Shift Done!';
   }
 }
 
 function updateBus(dt) {
-  const accel = (keys['w'] || keys['arrowup']) ? 28 : 0;
-  const reverse = keys['r'] ? -20 : 0;
-  const brake = (keys['s'] || keys['arrowdown'] || keys[' ']) ? 40 : 0;
+  const isGas = keys['w'] || keys['arrowup'];
+  const isBrake = keys['s'] || keys['arrowdown'] || keys[' '];
+  const isRev = keys['r'];
   const steerInput = ((keys['a'] || keys['arrowleft']) ? 1 : 0) - ((keys['d'] || keys['arrowright']) ? 1 : 0);
 
-  state.steer += (steerInput - state.steer) * Math.min(1, dt * 4);
-  state.speed += (accel + reverse - brake) * dt;
-  
-  state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
-  state.speed *= 0.995;
+  const accelForce = 45;
+  const brakeForce = 80;
+  const drag = 2.5;
 
-  const turnFactor = 0.9 * (state.speed / state.maxSpeed);
+  if (isGas) state.speed += accelForce * dt;
+  else if (isBrake) state.speed -= brakeForce * dt;
+  else if (isRev) state.speed -= 25 * dt;
+  else {
+    if (state.speed > 0) state.speed = Math.max(0, state.speed - drag * dt);
+    if (state.speed < 0) state.speed = Math.min(0, state.speed + drag * dt);
+  }
+
+  state.speed = Math.max(-20, Math.min(state.maxSpeed, state.speed));
+
+  state.steer += (steerInput - state.steer) * Math.min(1, dt * 8);
+  const turnFactor = 1.2 * (state.speed / state.maxSpeed);
   bus.rotation.y += state.steer * turnFactor * dt;
 
-  const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt * 0.5;
-  const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt * 0.5;
+  const nextX = bus.position.x + Math.sin(bus.rotation.y) * state.speed * dt;
+  const nextZ = bus.position.z + Math.cos(bus.rotation.y) * state.speed * dt;
   
   let hit = false;
   for (let obj of collisionObjects) {
@@ -359,7 +391,6 @@ function updateCamera(dt) {
   }
 
   if (state.cockpit) {
-    // HOOD CAM: Positioned at the front bumper, looking forward (no clipping)
     const local = new THREE.Vector3(0, 2.5, 6.5); 
     const world = local.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bus.rotation.y).add(bus.position);
     camera.position.copy(world);
@@ -386,40 +417,38 @@ function updateCamera(dt) {
   camera.updateProjectionMatrix();
 }
 
+const promptYesBtn = $('promptYes');
+const promptNoBtn = $('promptNo');
+
+promptYesBtn.onclick = (e) => {
+  e.preventDefault();
+  state.money += 8;
+  state.rep = Math.min(100, state.rep + 2);
+  state.passengers++;
+  $('prompt').classList.add('hidden');
+  state.paused = false;
+  updateHUD();
+};
+
+promptNoBtn.onclick = (e) => {
+  e.preventDefault();
+  state.rep = Math.max(0, state.rep - 1); 
+  $('prompt').classList.add('hidden');
+  state.paused = false;
+  updateHUD();
+};
+
 function checkStops() {
   stops.forEach(s => {
     if (s.used) return;
     const wp = s.zone.position.clone().add(s.group.position);
     
-    // Increased radius to 10 for easier trigger
-    if (wp.distanceTo(bus.position) < 10 && Math.abs(state.speed) < 5) {
+    if (wp.distanceTo(bus.position) < 16 && Math.abs(state.speed) < 8) {
       s.used = true;
       state.paused = true; 
-      
-      promptTextEl.textContent = "🚏 Bus stop reached! Allow passengers to board?";
-      
-      const yesBtn = $('promptYes');
-      const noBtn = $('promptNo');
-      
-      yesBtn.onclick = (e) => {
-        e.preventDefault();
-        state.money += 8;
-        state.rep += 2;
-        state.passengers++;
-        s.zone.material.color.set(0x22c55e); 
-        promptEl.classList.add('hidden');
-        state.paused = false;
-        updateHUD();
-      };
-      noBtn.onclick = (e) => {
-        e.preventDefault();
-        state.rep = Math.max(0, state.rep - 1); 
-        promptEl.classList.add('hidden');
-        state.paused = false;
-        updateHUD();
-      };
-      
-      promptEl.classList.remove('hidden');
+      s.zone.material.color.set(0x22c55e);
+      keys['w'] = false; keys['s'] = false;
+      $('prompt').classList.remove('hidden');
     }
   });
 }
@@ -437,14 +466,10 @@ function updateTraffic(dt) {
   });
 }
 
-let dayTimer = 0;
-const DAY_LENGTH = 60;
-
-function updateDay(dt) {
-  if (state.paused || state.gameOver) return;
-  dayTimer += dt;
-  if (dayTimer >= DAY_LENGTH) {
-    dayTimer = 0;
+function checkShiftEnd() {
+  // End shift only when every stop is marked as used
+  const allStopsDone = stops.every(s => s.used);
+  if (allStopsDone && !state.gameOver && !state.paused) {
     endDay();
   }
 }
@@ -456,8 +481,8 @@ function endDay() {
   state.fuel = Math.min(100, state.fuel + 30);
   state.cond = Math.min(100, state.cond + 10);
   state.rep = Math.max(0, state.rep - 1);
-  stops.forEach(s => s.used = false);
 
+  // Check for Game Over / Win before generating new map
   if (state.day > state.maxDays || state.rep <= 0 || state.money < -100) {
     const win = state.money >= 500 && state.rep >= 30;
     showOverlay(
@@ -467,139 +492,4 @@ function endDay() {
       () => location.reload()
     );
     state.gameOver = true;
-    return;
-  }
-
-  showOverlay(
-    `📅 Day ${state.day}`,
-    `Revenue collected. Fuel refilled. Ready for another shift?`,
-    "Start shift",
-    () => { overlay.classList.add('hidden'); state.paused = false; }
-  );
-  updateHUD();
-}
-
-const promptEl = $('prompt');
-const promptTextEl = $('promptText');
-const overlay = $('overlay');
-
-function showOverlay(title, text, btn, cb) {
-  $('overlayTitle').textContent = title;
-  $('overlayText').textContent = text;
-  const b = $('overlayBtn');
-  b.textContent = btn;
-  b.onclick = cb;
-  overlay.classList.remove('hidden');
-}
-
-const mm = document.getElementById('minimap');
-const mctx = mm.getContext('2d');
-
-function drawMinimap() {
-  mctx.clearRect(0, 0, 180, 180);
-  mctx.fillStyle = 'rgba(0,0,0,0.4)';
-  mctx.fillRect(0, 0, 180, 180);
-
-  const scale = 180 / (GRID * TILE);
-  const ox = 90;
-  const oy = 90;
-
-  mctx.fillStyle = '#555';
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      if (map[r][c] === 0) {
-        const wx = -HALF + c * TILE;
-        const wz = -HALF + r * TILE;
-        mctx.fillRect(ox + wx * scale, oy + wz * scale, TILE * scale, TILE * scale);
-      }
-    }
-  }
-
-  stops.forEach(s => {
-    mctx.fillStyle = s.used ? '#22c55e' : '#2563eb';
-    mctx.beginPath();
-    mctx.arc(ox + s.world.x * scale, oy + s.world.z * scale, 3, 0, Math.PI * 2);
-    mctx.fill();
-  });
-
-  mctx.save();
-  mctx.translate(ox + bus.position.x * scale, oy + bus.position.z * scale);
-  mctx.rotate(-bus.rotation.y);
-  mctx.fillStyle = '#facc15';
-  mctx.beginPath();
-  mctx.moveTo(0, -6);
-  mctx.lineTo(4, 5);
-  mctx.lineTo(-4, 5);
-  mctx.closePath();
-  mctx.fill();
-  mctx.restore();
-}
-
-const introEl = document.getElementById('intro');
-const startBtn = document.getElementById('startBtn');
-
-function startGame(e) {
-  if (e) e.preventDefault();
-  introEl.classList.add('fade-out');
-  document.body.classList.remove('intro');
-  setTimeout(() => { introEl.style.display = 'none'; }, 800);
-  intro.transitioning = true;
-  intro.transition = 0;
-}
-
-startBtn.addEventListener('click', startGame);
-startBtn.addEventListener('touchstart', startGame, {passive: false});
-
-let last = performance.now();
-function animate() {
-  requestAnimationFrame(animate);
-  const now = performance.now();
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-
-  if (!state.paused && !state.gameOver) {
-    updateBus(dt);
-    updateTraffic(dt);
-    checkStops();
-    updateDay(dt);
-    updateHUD();
-  }
-  updateCamera(dt);
-  drawMinimap();
-  renderer.render(scene, camera);
-}
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
-function bindTouch(id, key) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-
-  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[key] = true; });
-  btn.addEventListener('pointerup', (e) => { e.preventDefault(); keys[key] = false; });
-  btn.addEventListener('pointerleave', (e) => { e.preventDefault(); keys[key] = false; });
-  btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; }, {passive: false});
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; }, {passive: false});
-}
-bindTouch('btn-left', 'a');
-bindTouch('btn-right', 'd');
-bindTouch('btn-gas', 'w');
-bindTouch('btn-brake', 's');
-bindTouch('btn-rev', 'r');
-
-const camBtn = document.getElementById('btn-cam');
-if (camBtn) {
-  function toggleCam(e) {
-    if (e) e.preventDefault();
-    state.cockpit = !state.cockpit;
-  }
-  camBtn.addEventListener('click', toggleCam);
-  camBtn.addEventListener('touchstart', toggleCam, {passive: false});
-}
-
-updateHUD();
-animate();
+    return
